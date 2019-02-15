@@ -12,16 +12,19 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import json
 from keras import backend as K
 from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.initializers import VarianceScaling
 from keras.callbacks import EarlyStopping, TensorBoard,ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from utils import KerasDataGenerator
 from tensorflow.keras.applications.resnet50 import preprocess_input
+#from keras.applications.VGG16 import preprocess_input
 from tensorflow.keras.preprocessing import image
 import numpy as np
 from submission import SubmissionWriter
 from datetime import datetime
+from sklearn.model_selection import train_test_split
+import sys
 
 # Evaluation from keras_example
 def evaluate(model, dataset, append_submission, dataset_root):
@@ -33,6 +36,7 @@ def evaluate(model, dataset, append_submission, dataset_root):
 
     print('Running evaluation on {} set...'.format(dataset))
 
+    count_img=0
     for img in image_list:
         img_path = os.path.join(dataset_root, 'images', dataset, img['filename'])
         pil_img = image.load_img(img_path, target_size=(224, 224))
@@ -40,11 +44,15 @@ def evaluate(model, dataset, append_submission, dataset_root):
         x = preprocess_input(x)
         x = np.expand_dims(x, 0)
         output = model.predict(x)
+        sys.stdout.write('\r'+str(count_img/len(image_list))+'               ')
+        sys.stdout.flush()
         append_submission(img['filename'], output[0, :4], output[0, 4:])
+        count_img+=1
 
 # Make sure no old graphs are kept
 K.clear_session()
 
+# Directory where images are saved
 speed_root='speed'
 # Use DEBUG=True to use only 10% of data for debuging
 DEBUG=False
@@ -59,13 +67,17 @@ params = {'dim': (224, 224),
 with open(os.path.join(speed_root, 'train' + '.json'), 'r') as f:
     label_list = json.load(f)
 
+#if DEBUG:
+#    train_labels = label_list[:int(len(label_list)*.08)]
+#    validation_labels = label_list[int(len(label_list)*.08):int(len(label_list)*.1)]
+#else:
+#    train_labels = label_list[:int(len(label_list)*.8)]
+#    validation_labels = label_list[int(len(label_list)*.8):int(len(label_list)*1)]
+
 if DEBUG:
-    train_labels = label_list[:int(len(label_list)*.08)]
-    validation_labels = label_list[int(len(label_list)*.08):int(len(label_list)*.1)]
+    train_labels, validation_labels = train_test_split(label_list[:int(len(label_list)*.1)], test_size = 0.2, shuffle = True, random_state=42)
 else:
-    train_labels = label_list[:int(len(label_list)*.8)]
-    validation_labels = label_list[int(len(label_list)*.8):int(len(label_list)*1)]
-    
+    train_labels, validation_labels = train_test_split(label_list, test_size = 0.2, shuffle = True, random_state=42)
 
 print("Creating generators")
 # Data generators for training and validation from the utils file
@@ -137,7 +149,7 @@ reduce_lr=ReduceLROnPlateau(monitor = "val_loss", factor = 0.1,
                               patience = 4, verbose = 1,
                               min_delta = 1e-05,)
 # Save best models with loss and epoch in the name
-save_model=ModelCheckpoint('modelSave1_{epoch:04d}-{val_loss:.5f}.h5',save_best_only=True)
+save_model=ModelCheckpoint('modelSave_'+datetime.now().strftime("%Y%m%d-%H%M")+'_{epoch:04d}-{val_loss:.5f}.h5',save_best_only=True)
 callbacks=[early_stopping,tensor_board,reduce_lr,save_model]
 
 print("Training model")
@@ -155,11 +167,13 @@ history=pretrained_model.fit_generator(training_generator,
 print('Training losses: ', history.history['loss'])
 print('Validation losses: ', history.history['val_loss'])
 
+
+#pretrained_model=load_model("modelSave1_0004-1.96160.h5")
 # Generating submission
 submission = SubmissionWriter()
 evaluate(pretrained_model, 'test', submission.append_test, speed_root)
 evaluate(pretrained_model, 'real_test', submission.append_real_test, speed_root)
-submission.export(suffix='keras_test_1a')
+submission.export(suffix='keras_test_1a_'+datetime.now().strftime("%Y%m%d-%H%M"))
 
 
 
