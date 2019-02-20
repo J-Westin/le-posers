@@ -234,7 +234,7 @@ if has_tf:
             self.preprocessor = preprocessor
             self.dim = dim
             self.batch_size = batch_size
-            self.labels = self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
+            self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
                                          for label in label_list}
             self.list_IDs = [label['filename'] for label in label_list]
             self.n_channels = n_channels

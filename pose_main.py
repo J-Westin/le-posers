@@ -1,12 +1,15 @@
 import json
 import tensorflow
-from utils import KerasDataGenerator
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 import keras
 import numpy as np
-from submission import SubmissionWriter
 import os
+from sklearn import model_selection
+
+from pose_submission import SubmissionWriter
+from pose_utils import KerasDataGenerator
+
 
 """ 
     Example script demonstrating training on the SPEED dataset using Keras.
@@ -46,8 +49,12 @@ def main(speed_root, epochs, batch_size):
     # Loading and splitting dataset
     with open(os.path.join(speed_root, 'train' + '.json'), 'r') as f:
         label_list = json.load(f)
-    train_labels = label_list[:int(len(label_list)*.8)]
-    validation_labels = label_list[int(len(label_list)*.8):]
+
+    #shuffle and split
+    train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = 0.2, shuffle = True)
+
+    # train_labels = label_list[:int(len(label_list)*.8)]
+    # validation_labels = label_list[int(len(label_list)*.8):]
 
     # Data generators for training and validation
     training_generator = KerasDataGenerator(preprocess_input, train_labels, speed_root, **params)
@@ -92,3 +99,11 @@ parser.add_argument('--batch', help='number of samples in a batch.', default=32)
 args = parser.parse_args()
 
 main(args.dataset, int(args.epochs), int(args.batch))
+
+
+'''
+https://machinelearningmastery.com/save-load-keras-deep-learning-models/
+
+Remove last layer of model with 
+model.layers.pop()
+'''
