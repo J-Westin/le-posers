@@ -16,17 +16,18 @@ from pose_architecture_0 import create_model
 
 """ 
 	Example script demonstrating training on the SPEED dataset using Keras.
-	Usage example: python keras_example.py --dataset [path to speed] --epochs [num epochs] --batch [batch size]
+	Usage example: python keras_example.py --epochs [num epochs] --batch [batch size]
 """
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs):
+	def __init__(self, batch_size, epochs, version):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
-		self.imgsize = 224
+		self.version = version
 
+		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.2
 
@@ -37,7 +38,7 @@ class POSE_NN(object):
 				  'shuffle': True}
 
 		#### constant parameters
-		self.dataset_loc = './speed/'
+		self.dataset_loc = 'speed'
 
 		#### initialize some stuff
 		self.dataloader()
@@ -64,8 +65,8 @@ class POSE_NN(object):
 	def generate_submission(self):
 		# Generating submission
 		submission = SubmissionWriter()
-		evaluate(self.model, 'test', submission.append_test, self.dataset_loc)
-		evaluate(self.model, 'real_test', submission.append_real_test, self.dataset_loc)
+		self.evaluate(self.model, 'test', submission.append_test, self.dataset_loc)
+		self.evaluate(self.model, 'real_test', submission.append_real_test, self.dataset_loc)
 		submission.export(suffix='keras_example')
 
 	def dataloader(self):
@@ -83,15 +84,15 @@ class POSE_NN(object):
 		# validation_labels = label_list[int(len(label_list)*.8):]
 
 		# Data generators for training and validation
-		self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **params)
-		self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **params)
+		self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **self.params)
+		self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
 
 	def train_model(self):
 		"""
 		Train the model
 		"""
 		# Training the model (transfer learning)
-		history = self.model_final.fit_generator(
+		history = self.model.fit_generator(
 			self.training_generator,
 			epochs=self.epochs,
 			validation_data=self.validation_generator,
@@ -100,12 +101,12 @@ class POSE_NN(object):
 		print('Training losses: ', history.history['loss'])
 		print('Validation losses: ', history.history['val_loss'])
 
-def main(batch_size, epochs):
+def main(batch_size, epochs, version):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs)
+	pose = POSE_NN(batch_size, epochs, version)
 
 	#train the network
 	pose.train_model()
@@ -118,9 +119,10 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default=20)
 parser.add_argument('--batch', help='number of samples in a batch.', default=32)
+parser.add_argument('--version', help='version of the neural network.', default=0)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs))
+main(int(args.batch), int(args.epochs), int(args.version))
 
 
 '''
