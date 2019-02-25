@@ -12,7 +12,7 @@ import keras
 def create_model():
 	# Loading and freezing pre-trained model
 	keras.backend.set_learning_phase(0)
-	pretrained_model = keras.applications.ResNet50(weights="imagenet", 
+	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
 										include_top=False,
 										input_shape=(224, 224, 3))
 
@@ -20,9 +20,9 @@ def create_model():
 	keras.backend.set_learning_phase(1)
 	x = pretrained_model.output
 	x = keras.layers.Flatten()(x)
-	x = keras.layers.Dense(1024, activation="relu")(x)
-	predictions = keras.layers.Dense(7, activation="linear")(x)
+	x = keras.layers.Dense(1024, activation='relu')(x)
+	predictions = keras.layers.Dense(7, activation='linear')(x)
 	model_final = keras.models.Model(inputs=pretrained_model.input, outputs=predictions)
-	model_final.compile(loss="mean_squared_error", optimizer='adam')
+	model_final.compile(loss='mean_squared_error', optimizer='adam')
 
 	return model_final
