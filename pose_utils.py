@@ -295,3 +295,13 @@ else:
     class KerasDataGenerator:
         def __init__(self, *args, **kwargs):
             raise ImportError('tensorflow.keras is not available! Please install tensorflow.')
+
+
+def checkFolders(folders):
+    """
+    Check whether folders are present and creates them if necessary
+    """
+    for folder in folders:
+        if not os.path.exists(folder):
+            print(f'Making directory {folder}')
+            os.makedirs(folder)

@@ -12,7 +12,7 @@ from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
 import keras
 
-def create_model():
+def create_model(pose):
 	# Loading and freezing pre-trained model
 	keras.backend.set_learning_phase(0)
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
@@ -28,7 +28,7 @@ def create_model():
 	model_final = keras.models.Model(inputs=pretrained_model.input, outputs=predictions)
 	
 	#make a flow chart of the model
-	plot_model(model_final, to_file='model_arch_0.png', show_shapes=True, show_layer_names=True)
+	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_0.png', show_shapes=True, show_layer_names=True)
 
 	model_final.compile(loss='mean_squared_error', optimizer='adam')
 

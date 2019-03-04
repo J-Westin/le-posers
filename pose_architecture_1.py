@@ -13,6 +13,9 @@ from keras.preprocessing import image
 
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
+#things needed for adding layers
+from keras.layers import Input, Conv2D, Conv2DTranspose, Flatten, Dense, Dropout, Activation, Add, MaxPooling2D
+
 import keras
 
 def create_model(pose):
@@ -21,28 +24,59 @@ def create_model(pose):
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
 										include_top=False,
 										input_shape=(224, 224, 3))
-	# pretrained_model.summary(print_fn = pose.savePrint)
+	
+	#find the number of layers of the pretrained network
+	nl_pre = len(pretrained_model.layers)
 
+	#pop all layers until you end up at the desired number
+	#if a layer splits, both sides also add up to the layer count
+	nl_from_pre = 17 
+	test_model = pretrained_model
+	for i in reversed(range(nl_from_pre+1, nl_pre)):
+		#pop single layers at a time
+		test_model.layers.pop()
 
-	print(pretrained_model.layers[0])
-	pretrained_model.layers.pop()
-	print('\nPopped!\n')
-
-	plot_model(pretrained_model, to_file='resnet_model_popped.png', show_shapes=True, show_layer_names=True)
-
-
-	# pretrained_model.summary(print_fn = pose.savePrint)
+	plot_model(test_model, to_file='resnet_first_15_layers.png', show_shapes=True, show_layer_names=True)
 
 	# Adding new trainable hidden and output layers to the model
 	keras.backend.set_learning_phase(1)
-	x = pretrained_model.output
+	x = test_model.output
+	print(x)
+	print(x.get_shape())
+
+
+	x = MaxPooling2D(pool_size=(2,2))(x)
+
+	x = Conv2D(filters=24, kernel_size=3, padding='valid',
+					 kernel_initializer='glorot_uniform', 
+					 activation='relu', use_bias=True)(x)
+	x = Dropout(pose.dropout)(x)
+	x = Activation('relu')(x)
+
+	x = MaxPooling2D(pool_size=(2,2))(x)
+
+	x = Conv2D(filters=16, kernel_size=3, padding='valid',
+					 kernel_initializer='glorot_uniform', 
+					 activation='relu', use_bias=True)(x)
+	x = Dropout(pose.dropout)(x)
+	x = Activation('relu')(x)
+
+	x = MaxPooling2D(pool_size=(2,2))(x)
+
+
+	#now flatten
 	x = keras.layers.Flatten()(x)
-	x = keras.layers.Dense(1024, activation='relu')(x)
+	x = keras.layers.Dense(15, activation='relu')(x)
+	x = Dropout(pose.dropout)(x)
+
+	#output layer
 	predictions = keras.layers.Dense(7, activation='linear')(x)
-	model_final = keras.models.Model(inputs=pretrained_model.input, outputs=predictions)
+
+	#combine model
+	model_final = keras.models.Model(inputs=test_model.input, outputs=predictions)
 
 	#make a flow chart of the model
-	plot_model(model_final, to_file='model_arch_1.png', show_shapes=True, show_layer_names=True)
+	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_1.png', show_shapes=True, show_layer_names=True)
 
 	model_final.compile(loss='mean_squared_error', optimizer='adam')
 

@@ -10,8 +10,8 @@ import os
 import argparse
 
 from pose_submission import SubmissionWriter
-from pose_utils import KerasDataGenerator
-from pose_architecture_0 import create_model
+from pose_utils import KerasDataGenerator, checkFolders
+from pose_architecture_1 import create_model
 
 
 """ 
@@ -31,6 +31,9 @@ class POSE_NN(object):
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.2
 
+		#dropout percentage
+		self.dropout = 0.3
+
 
 		self.params = {'dim': (self.imgsize, self.imgsize),
 				  'batch_size': batch_size,
@@ -38,11 +41,17 @@ class POSE_NN(object):
 				  'shuffle': True}
 
 		#### constant parameters
-		self.dataset_loc = 'speed'
+		self.dataset_loc = '/data/s1530194/speed'
+
+		self.output_loc = f'./Version_{self.version}/'
+		self.model_summary_name = 'model_summary.txt'
 
 		#### initialize some stuff
+		#make folders if necessary
+		checkFolders([self.output_loc])
+
 		self.dataloader()
-		self.model = create_model()
+		self.model = create_model(self)
 
 	def evaluate(self, model, dataset, append_submission, dataset_root):
 
@@ -67,7 +76,7 @@ class POSE_NN(object):
 		submission = SubmissionWriter()
 		self.evaluate(self.model, 'test', submission.append_test, self.dataset_loc)
 		self.evaluate(self.model, 'real_test', submission.append_real_test, self.dataset_loc)
-		submission.export(suffix='keras_example')
+		submission.export(suffix=f'{self.output_loc}keras_example')
 
 	def dataloader(self):
 		"""
@@ -101,6 +110,14 @@ class POSE_NN(object):
 		print('Training losses: ', history.history['loss'])
 		print('Validation losses: ', history.history['val_loss'])
 
+	def savePrint(self, s):
+		"""
+		Write a given Keras model summary to file
+		"""
+		
+		with open(self.model_summary_loc + self.model_summary_name, 'a') as f:
+			print(s, file = f) 
+
 def main(batch_size, epochs, version):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
@@ -117,9 +134,9 @@ def main(batch_size, epochs, version):
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
-parser.add_argument('--epochs', help='Number of epochs for training.', default=20)
-parser.add_argument('--batch', help='number of samples in a batch.', default=32)
-parser.add_argument('--version', help='version of the neural network.', default=0)
+parser.add_argument('--epochs', help='Number of epochs for training.', default = 20)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
+parser.add_argument('--version', help='version of the neural network.', default = 0)
 args = parser.parse_args()
 
 main(int(args.batch), int(args.epochs), int(args.version))
