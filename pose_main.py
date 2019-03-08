@@ -147,4 +147,8 @@ https://machinelearningmastery.com/save-load-keras-deep-learning-models/
 
 Remove last layer of model with 
 model.layers.pop()
+
+Freeze layers
+for layer in model.layers:
+    layer.trainable = False
 '''

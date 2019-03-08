@@ -14,16 +14,19 @@ from keras.preprocessing import image
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
 #things needed for adding layers
-from keras.layers import Input, Conv2D, Conv2DTranspose, Flatten, Dense, Dropout, Activation, Add, MaxPooling2D
+# from keras.layers import Input, Conv2D, Conv2DTranspose, Flatten, Dense, Dropout, Activation, Add, MaxPooling2D
 
 import keras
+
+import sys
 
 def create_model(pose):
 	# Loading and freezing pre-trained model
 	keras.backend.set_learning_phase(0)
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
 										include_top=False,
-										input_shape=(224, 224, 3))
+										input_shape=(pose.imgsize, pose.imgsize, 3))
+	keras.backend.set_learning_phase(1)
 	
 	#find the number of layers of the pretrained network
 	nl_pre = len(pretrained_model.layers)
@@ -33,41 +36,38 @@ def create_model(pose):
 	nl_from_pre = 17 
 	test_model = pretrained_model
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
-		#pop single layers at a time
+		#pop one layer at a time
 		test_model.layers.pop()
 
 	plot_model(test_model, to_file='resnet_first_15_layers.png', show_shapes=True, show_layer_names=True)
 
 	# Adding new trainable hidden and output layers to the model
-	keras.backend.set_learning_phase(1)
-	x = test_model.output
-	print(x)
-	print(x.get_shape())
+	# x = test_model.output
+	x = test_model.layers[-1].output
 
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
-	x = MaxPooling2D(pool_size=(2,2))(x)
-
-	x = Conv2D(filters=24, kernel_size=3, padding='valid',
+	x = keras.layers.Conv2D(filters=24, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', 
 					 activation='relu', use_bias=True)(x)
-	x = Dropout(pose.dropout)(x)
-	x = Activation('relu')(x)
+	x = keras.layers.Dropout(pose.dropout)(x)
+	x = keras.layers.Activation('relu')(x)
 
-	x = MaxPooling2D(pool_size=(2,2))(x)
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
-	x = Conv2D(filters=16, kernel_size=3, padding='valid',
+	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', 
 					 activation='relu', use_bias=True)(x)
-	x = Dropout(pose.dropout)(x)
-	x = Activation('relu')(x)
+	x = keras.layers.Dropout(pose.dropout)(x)
+	x = keras.layers.Activation('relu')(x)
 
-	x = MaxPooling2D(pool_size=(2,2))(x)
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 
 	#now flatten
 	x = keras.layers.Flatten()(x)
 	x = keras.layers.Dense(15, activation='relu')(x)
-	x = Dropout(pose.dropout)(x)
+	x = keras.layers.Dropout(pose.dropout)(x)
 
 	#output layer
 	predictions = keras.layers.Dense(7, activation='linear')(x)
