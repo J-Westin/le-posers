@@ -29,7 +29,7 @@ class POSE_NN(object):
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
-		self.test_size = 0.2
+		self.test_size = 0.1
 
 		#dropout percentage
 		self.dropout = 0.3
@@ -76,7 +76,7 @@ class POSE_NN(object):
 		submission = SubmissionWriter()
 		self.evaluate(self.model, 'test', submission.append_test, self.dataset_loc)
 		self.evaluate(self.model, 'real_test', submission.append_real_test, self.dataset_loc)
-		submission.export(suffix=f'{self.output_loc}keras_example')
+		submission.export(out_dir = self.output_loc, suffix = f'version_{self.version}')
 
 	def dataloader(self):
 		"""
