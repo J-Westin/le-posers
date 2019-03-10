@@ -8,6 +8,8 @@ from sklearn import model_selection
 import numpy as np
 import os
 import argparse
+import time
+
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -30,7 +32,7 @@ class POSE_NN(object):
 		self.epochs = epochs
 		self.version = version
 
-		self.imgsize = 224
+		self.imgsize = 400
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.1
 
@@ -41,7 +43,7 @@ class POSE_NN(object):
 
 
 		self.params = {'dim': (self.imgsize, self.imgsize),
-				  'batch_size': batch_size,
+				  'batch_size': self.batch_size,
 				  'n_channels': 3,
 				  'shuffle': True}
 
@@ -52,7 +54,7 @@ class POSE_NN(object):
 		self.model_summary_name = 'model_summary.txt'
 
 		#### initialize some stuff
-		#make folders if necessary
+		#check if folders are present and make them if necessary
 		checkFolders([self.output_loc])
 
 		self.dataloader()
@@ -83,7 +85,7 @@ class POSE_NN(object):
 		submission = SubmissionWriter()
 		self.evaluate(self.model, 'test', submission.append_test, self.dataset_loc)
 		self.evaluate(self.model, 'real_test', submission.append_real_test, self.dataset_loc)
-		submission.export(out_dir = self.output_loc, suffix = f'version_{self.version}')
+		submission.export(out_dir = self.output_loc, suffix = f'v{self.version}')
 
 	def dataloader(self):
 		"""
@@ -104,12 +106,20 @@ class POSE_NN(object):
 		"""
 		Train the model
 		"""
+		#time training
+		starttime = time.time()
+
 		# Training the model (transfer learning)
 		history = self.model.fit_generator(
 			self.training_generator,
 			epochs=self.epochs,
 			validation_data=self.validation_generator,
 			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps')])
+
+		train_duration = time.time() - starttime
+
+		print('\n--------------------------')
+		print(f'Training duration: {round(train_duration, 3)} s')
 
 		train_loss = history.history['loss']
 		test_loss = history.history['val_loss']
@@ -123,6 +133,7 @@ class POSE_NN(object):
 		#save the model
 		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}.h5', model = self.model, save = True)
 
+		print('--------------------------\n')
 
 	def savePrint(self, s):
 		"""

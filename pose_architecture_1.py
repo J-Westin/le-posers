@@ -23,6 +23,10 @@ import keras
 import sys
 
 def create_model(pose):
+	#number of layers to use from the pretrained network
+	nl_from_pre = 17 
+
+
 	# Loading and freezing pre-trained model
 	keras.backend.set_learning_phase(0)
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
@@ -35,21 +39,19 @@ def create_model(pose):
 
 	#pop all layers until you end up at the desired number
 	#if a layer splits, both sides also add up to the layer count
-	nl_from_pre = 17 
 	test_model = pretrained_model
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
 		#pop one layer at a time
 		test_model.layers.pop()
 
-	plot_model(test_model, to_file='resnet_first_15_layers.png', show_shapes=True, show_layer_names=True)
+	# plot_model(test_model, to_file='resnet_first_15_layers.png', show_shapes=True, show_layer_names=True)
 
 	# Adding new trainable hidden and output layers to the model
-	# x = test_model.output
 	x = test_model.layers[-1].output
 
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
-	x = keras.layers.Conv2D(filters=24, kernel_size=3, padding='valid',
+	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', 
 					 activation='relu', use_bias=True)(x)
 	x = keras.layers.Dropout(pose.dropout)(x)

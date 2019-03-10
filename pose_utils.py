@@ -282,7 +282,7 @@ if has_tf:
             # Generate data
             for i, ID in enumerate(list_IDs_temp):
                 img_path = os.path.join(self.image_root, ID)
-                img = keras_image.load_img(img_path, target_size=(224, 224))
+                img = keras_image.load_img(img_path, target_size=self.dim)
                 x = keras_image.img_to_array(img)
                 x = self.preprocessor(x)
                 X[i,] = x
@@ -310,7 +310,7 @@ class OutputResults(object):
     def __init__(self, pose_nn):
         self.pose_nn = pose_nn
 
-    def plot_save_loss(self, train_loss, test_loss):
+    def plot_save_losses(self, train_loss, test_loss):
         """
         Save and plot the losses
         """
