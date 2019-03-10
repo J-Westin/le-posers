@@ -78,8 +78,9 @@ def create_model(pose):
 	model_final = keras.models.Model(inputs=test_model.input, outputs=predictions)
 
 	#make a flow chart of the model
-	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_1.png', show_shapes=True, show_layer_names=True)
+	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
-	model_final.compile(loss='mean_squared_error', optimizer=Adam(lr = pose.learning_rate))
+	model_final.compile(loss='mean_squared_error', 
+				optimizer=Adam(lr = pose.learning_rate))
 
 	return model_final

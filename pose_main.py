@@ -13,7 +13,7 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
-from pose_utils import KerasDataGenerator, checkFolders
+from pose_utils import KerasDataGenerator, checkFolders, OutputResults
 from pose_architecture_1 import create_model
 
 
@@ -58,6 +58,8 @@ class POSE_NN(object):
 		self.dataloader()
 		self.model = create_model(self)
 
+		self.gen_output = OutputResults(self)
+
 	def evaluate(self, model, dataset, append_submission, dataset_root):
 
 		""" Running evaluation on test set, appending results to a submission. """
@@ -94,9 +96,6 @@ class POSE_NN(object):
 		#shuffle and split
 		train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = self.test_size, shuffle = True)
 
-		# train_labels = label_list[:int(len(label_list)*.8)]
-		# validation_labels = label_list[int(len(label_list)*.8):]
-
 		# Data generators for training and validation
 		self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **self.params)
 		self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
@@ -118,17 +117,11 @@ class POSE_NN(object):
 		print('Training losses: ', history.history['loss'])
 		print('Validation losses: ', history.history['val_loss'])
 
-		#plot losses and save them
-		np.savetxt(f'{self.output_loc}Losses.txt', np.array([train_loss, test_loss]))
+		#save and plot losses
+		self.gen_output.plot_save_losses(train_loss, test_loss)
 
-		plt.plot(np.arange(1, len(train_loss)+1), train_loss, label = 'Train loss')
-		plt.plot(np.arange(1, len(test_loss)+1), test_loss, label = 'Test loss')
-
-		plt.xlabel('Epoch')
-		plt.ylabel('Loss')
-		plt.legend(loc = 'best')
-		plt.savefig(f'{self.output_loc}Losses.png', dpi = 300, bbox_inches = 'tight')
-		plt.close()
+		#save the model
+		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}.h5', model = self.model, save = True)
 
 
 	def savePrint(self, s):

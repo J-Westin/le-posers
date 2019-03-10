@@ -305,3 +305,51 @@ def checkFolders(folders):
         if not os.path.exists(folder):
             print(f'Making directory {folder}')
             os.makedirs(folder)
+
+class OutputResults(object):
+    def __init__(self, pose_nn):
+        self.pose_nn = pose_nn
+
+    def plot_save_loss(self, train_loss, test_loss):
+        """
+        Save and plot the losses
+        """
+        #save
+        np.savetxt(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.txt', np.array([train_loss, test_loss]), header = 'train_loss test_loss')
+
+        #plot
+        plt.plot(np.arange(1, len(train_loss)+1), train_loss, label = 'Train loss')
+        plt.plot(np.arange(1, len(test_loss)+1), test_loss, label = 'Test loss')
+
+        #set ylims starting at 0
+        ylims = plt.ylim()
+        plt.ylim((0, ylims[1]))
+
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title(f'Loss progression of version {self.pose_nn.version}')
+        plt.legend(loc = 'best')
+        plt.grid(alpha = 0.4)
+
+        plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.png', dpi = 300, bbox_inches = 'tight')
+        plt.close()
+
+    def saveLoadModel(self, filename, model=None, save=False, load=False):
+        """
+        Load or save a model easily given a path+filename. Filenames must have the format 'model.h5'.
+        This saves/load model architecture, weights, loss function, optimizer, and optimizer state.
+
+        Returns:
+        model if load=True, else just saves the input model
+        """
+        if save:
+            print('Saving model to {}'.format(filename))
+            model.save(filename)
+        if load:
+            if not os.path.exists(filename):
+                print('Cannot find specified model, check if path or filename is correct')
+                return
+            print('Loading model from {0}'.format(filename))
+            model = load_model(filename)
+            
+            return model
