@@ -11,6 +11,8 @@ This architecture uses the first two layers of ResNet and builds on this
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 
+from keras.optimizers import Adam
+
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
 #things needed for adding layers
@@ -78,6 +80,6 @@ def create_model(pose):
 	#make a flow chart of the model
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_1.png', show_shapes=True, show_layer_names=True)
 
-	model_final.compile(loss='mean_squared_error', optimizer='adam')
+	model_final.compile(loss='mean_squared_error', optimizer=Adam(lr = pose.learning_rate))
 
 	return model_final

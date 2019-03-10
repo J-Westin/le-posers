@@ -8,6 +8,9 @@ from sklearn import model_selection
 import numpy as np
 import os
 import argparse
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders
@@ -33,6 +36,8 @@ class POSE_NN(object):
 
 		#dropout percentage
 		self.dropout = 0.3
+
+		self.learning_rate = 0.0001
 
 
 		self.params = {'dim': (self.imgsize, self.imgsize),
@@ -107,8 +112,24 @@ class POSE_NN(object):
 			validation_data=self.validation_generator,
 			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps')])
 
+		train_loss = history.history['loss']
+		test_loss = history.history['val_loss']
+
 		print('Training losses: ', history.history['loss'])
 		print('Validation losses: ', history.history['val_loss'])
+
+		#plot losses and save them
+		np.savetxt(f'{self.output_loc}Losses.txt', np.array([train_loss, test_loss]))
+
+		plt.plot(np.arange(1, len(train_loss)+1), train_loss, label = 'Train loss')
+		plt.plot(np.arange(1, len(test_loss)+1), test_loss, label = 'Test loss')
+
+		plt.xlabel('Epoch')
+		plt.ylabel('Loss')
+		plt.legend(loc = 'best')
+		plt.savefig(f'{self.output_loc}Losses.png', dpi = 300, bbox_inches = 'tight')
+		plt.close()
+
 
 	def savePrint(self, s):
 		"""
