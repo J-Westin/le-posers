@@ -24,7 +24,7 @@ import sys
 
 def create_model(pose):
 	#number of layers to use from the pretrained network
-	nl_from_pre = 17 
+	nl_from_pre = 27 #17 for first skip connection
 
 
 	# Loading and freezing pre-trained model
@@ -32,6 +32,7 @@ def create_model(pose):
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
 										include_top=False,
 										input_shape=(pose.imgsize, pose.imgsize, 3))
+	#unfreeze the rest of the model
 	keras.backend.set_learning_phase(1)
 	
 	#find the number of layers of the pretrained network
@@ -79,7 +80,10 @@ def create_model(pose):
 	#combine model
 	model_final = keras.models.Model(inputs=test_model.input, outputs=predictions)
 
-	#make a flow chart of the model
+	#save summary to file
+	model_final.summary(print_fn = pose.savePrint)
+
+	#also make a flow chart of the model
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
 	model_final.compile(loss='mean_squared_error', 

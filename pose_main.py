@@ -51,7 +51,7 @@ class POSE_NN(object):
 		self.dataset_loc = '/data/s1530194/speed'
 
 		self.output_loc = f'./Version_{self.version}/'
-		self.model_summary_name = 'model_summary.txt'
+		self.model_summary_name = f'model_summary_v{self.version}.txt'
 
 		#### initialize some stuff
 		#check if folders are present and make them if necessary
@@ -140,7 +140,7 @@ class POSE_NN(object):
 		Write a given Keras model summary to file
 		"""
 		
-		with open(self.model_summary_loc + self.model_summary_name, 'a') as f:
+		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f) 
 
 def main(batch_size, epochs, version):
