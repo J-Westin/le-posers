@@ -24,7 +24,12 @@ import sys
 
 def create_model(pose):
 	#number of layers to use from the pretrained network
-	nl_from_pre = 27 #17 for first skip connection
+	'''
+	17 for 1 skip connection
+	27 for 2 skip connections
+	49 for 4 skip connections
+	'''
+	nl_from_pre = 27
 
 
 	# Loading and freezing pre-trained model
@@ -32,6 +37,7 @@ def create_model(pose):
 	pretrained_model = keras.applications.ResNet50(weights='imagenet', 
 										include_top=False,
 										input_shape=(pose.imgsize, pose.imgsize, 3))
+
 	#unfreeze the rest of the model
 	keras.backend.set_learning_phase(1)
 	
@@ -44,6 +50,8 @@ def create_model(pose):
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
 		#pop one layer at a time
 		test_model.layers.pop()
+
+	
 
 	# plot_model(test_model, to_file='resnet_first_15_layers.png', show_shapes=True, show_layer_names=True)
 

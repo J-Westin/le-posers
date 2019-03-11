@@ -26,11 +26,12 @@ from pose_architecture_1 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version):
+	def __init__(self, batch_size, epochs, version, load_model):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
 		self.version = version
+		self.load_model = load_model
 
 		self.imgsize = 400
 		#size of the test set as a fraction of the total amount of data
@@ -58,7 +59,10 @@ class POSE_NN(object):
 		checkFolders([self.output_loc])
 
 		self.dataloader()
-		self.model = create_model(self)
+		if self.load_model < 0:
+			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
+		else:
+			self.model = create_model(self)
 
 		self.gen_output = OutputResults(self)
 
@@ -143,12 +147,12 @@ class POSE_NN(object):
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f) 
 
-def main(batch_size, epochs, version):
+def main(batch_size, epochs, version, load_model):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version)
+	pose = POSE_NN(batch_size, epochs, version, load_model)
 
 	#train the network
 	pose.train_model()
@@ -162,9 +166,10 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 20)
 parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
 parser.add_argument('--version', help='version of the neural network.', default = 0)
+parser.add_argument('--load', help='load a previously trained network.', default = -1)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load))
 
 
 '''
