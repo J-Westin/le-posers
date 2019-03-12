@@ -62,7 +62,7 @@ def create_model(pose):
 	x = keras.layers.Dropout(pose.dropout)(x)
 
 	#output layer
-	predictions = keras.layers.Dense(7, activation='relu')(x)
+	predictions = keras.layers.Dense(7, activation='linear')(x)
 
 	#combine model
 	model_final = keras.models.Model(inputs=input, outputs=predictions)

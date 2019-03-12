@@ -49,7 +49,7 @@ class POSE_NN(object):
 				  'shuffle': True}
 
 		#### constant parameters
-		self.dataset_loc = '/data/s1530194/speed'
+		self.dataset_loc = '/local/s1530194/speed'
 
 		self.output_loc = f'./Version_{self.version}/'
 		self.model_summary_name = f'model_summary_v{self.version}.txt'
