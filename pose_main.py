@@ -38,7 +38,7 @@ class POSE_NN(object):
 		self.test_size = 0.1
 
 		#dropout percentage
-		self.dropout = 0.5
+		self.dropout = 0.3
 
 		self.learning_rate = 0.0001
 

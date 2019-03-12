@@ -26,46 +26,43 @@ def create_model(pose):
 	input = keras.layers.Input(shape=(pose.imgsize, pose.imgsize, 3))
 
 	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(input)
-	x = keras.layers.Dropout(pose.dropout)(x)
+					 kernel_initializer='glorot_uniform', use_bias=True)(input)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
-	# x = keras.layers.Activation('relu')(x)
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
-	# x = keras.layers.Activation('relu')(x)
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
-	# x = keras.layers.Activation('relu')(x)
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 
 	#now flatten
 	x = keras.layers.Flatten()(x)
-	x = keras.layers.Dense(15, activation='relu')(x)
+	x = keras.layers.Dense(15, activation = 'relu')(x)
 	x = keras.layers.Dropout(pose.dropout)(x)
 
 	#output layer
-	predictions = keras.layers.Dense(7, activation='linear')(x)
+	predictions = keras.layers.Dense(7, activation='relu')(x)
 
 	#combine model
 	model_final = keras.models.Model(inputs=input, outputs=predictions)
