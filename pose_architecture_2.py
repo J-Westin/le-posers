@@ -70,6 +70,9 @@ def create_model(pose):
 	#combine model
 	model_final = keras.models.Model(inputs=input, outputs=predictions)
 
+	#reset summary file
+	with open(pose.output_loc + pose.model_summary_name, 'w') as f:
+		pass
 	#save summary to file
 	model_final.summary(print_fn = pose.savePrint)
 

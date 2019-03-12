@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_1 import create_model
+from pose_architecture_3 import create_model
 
 
 """ 
@@ -33,12 +33,12 @@ class POSE_NN(object):
 		self.version = version
 		self.load_model = load_model
 
-		self.imgsize = 400
+		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.1
 
 		#dropout percentage
-		self.dropout = 0.3
+		self.dropout = 0.5
 
 		self.learning_rate = 0.0001
 
@@ -58,13 +58,14 @@ class POSE_NN(object):
 		#check if folders are present and make them if necessary
 		checkFolders([self.output_loc])
 
+		self.gen_output = OutputResults(self)
+
 		self.dataloader()
 		if self.load_model < 0:
-			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
-		else:
 			self.model = create_model(self)
+		else:
+			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
 
-		self.gen_output = OutputResults(self)
 
 	def evaluate(self, model, dataset, append_submission, dataset_root):
 
