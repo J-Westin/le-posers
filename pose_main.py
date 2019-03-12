@@ -33,7 +33,7 @@ class POSE_NN(object):
 		self.version = version
 		self.load_model = load_model
 
-		self.imgsize = 224
+		self.imgsize = 300
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.1
 

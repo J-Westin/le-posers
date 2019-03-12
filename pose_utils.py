@@ -325,6 +325,10 @@ class OutputResults(object):
         ylims = plt.ylim()
         plt.ylim((0, ylims[1]))
 
+        #set y scale to log if extremely large values are observed
+        if (np.max(train_loss) - np.min(train_loss)) > 1e2 or (np.max(test_loss) - np.min(test_loss)) > 1e2:
+            plt.yscale('log')
+
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.title(f'Loss progression of version {self.pose_nn.version}')

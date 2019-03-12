@@ -24,7 +24,7 @@ import sys
 
 def create_model(pose):
 	#number of layers to use from the pretrained network
-	# nl_from_pre = 20
+	nl_from_pre = 8
 
 
 	# Loading and freezing pre-trained model
@@ -38,7 +38,7 @@ def create_model(pose):
 	# plot_model(pretrained_model, to_file='VGG19_arch.png', show_shapes=True, show_layer_names=True)
 	# sys.exit('Stopped')
 	
-	'''
+	
 	#find the number of layers of the pretrained network
 	nl_pre = len(pretrained_model.layers)
 
@@ -48,10 +48,10 @@ def create_model(pose):
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
 		#pop one layer at a time
 		test_model.layers.pop()
-	'''
+	
 
 	# Adding new trainable hidden and output layers to the model
-	pre_x = pretrained_model.layers[-1].output
+	x = test_model.layers[-1].output
 
 	'''
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
@@ -64,6 +64,7 @@ def create_model(pose):
 
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
+	'''
 	'''
 	#make a second connection which quickly downsamples
 	y = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
@@ -88,14 +89,30 @@ def create_model(pose):
 
 	#add layers to form a skip connection
 	x = keras.layers.Add()([pre_x, y])
+	'''
+
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
+
+	x = keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid',
+					 kernel_initializer='glorot_uniform', 
+					 activation='relu', use_bias=True)(x)
+	x = keras.layers.Dropout(pose.dropout)(x)
+	x = keras.layers.Activation('relu')(x)
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', 
 					 activation='relu', use_bias=True)(x)
 	x = keras.layers.Dropout(pose.dropout)(x)
 	x = keras.layers.Activation('relu')(x)
-
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
+
+	# x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
+	# 				 kernel_initializer='glorot_uniform', 
+	# 				 activation='relu', use_bias=True)(x)
+	# x = keras.layers.Dropout(pose.dropout)(x)
+	# x = keras.layers.Activation('relu')(x)
+	# x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	#now flatten
 	x = keras.layers.Flatten()(x)
