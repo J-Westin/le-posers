@@ -24,7 +24,7 @@ import sys
 
 def create_model(pose):
 	#number of layers to use from the pretrained network
-	nl_from_pre = 8
+	# nl_from_pre = 8
 
 
 	# Loading and freezing pre-trained model
@@ -38,7 +38,7 @@ def create_model(pose):
 	# plot_model(pretrained_model, to_file='VGG19_arch.png', show_shapes=True, show_layer_names=True)
 	# sys.exit('Stopped')
 	
-	
+	'''
 	#find the number of layers of the pretrained network
 	nl_pre = len(pretrained_model.layers)
 
@@ -48,10 +48,10 @@ def create_model(pose):
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
 		#pop one layer at a time
 		test_model.layers.pop()
-	
+	'''
 
 	# Adding new trainable hidden and output layers to the model
-	x = test_model.layers[-1].output
+	pre_x = pretrained_model.layers[-1].output
 
 	'''
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
@@ -65,32 +65,30 @@ def create_model(pose):
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	'''
-	'''
+	
 	#make a second connection which quickly downsamples
 	y = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(pretrained_model.input)
-	y = keras.layers.Dropout(pose.dropout)(y)
+					 kernel_initializer='glorot_uniform', use_bias=True)(pretrained_model.input)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
 	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
 
 	y = keras.layers.Conv2D(filters=128, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(y)
-	y = keras.layers.Dropout(pose.dropout)(y)
+					 kernel_initializer='glorot_uniform', use_bias=True)(y)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
 	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
 
 	y = keras.layers.Conv2D(filters=512, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(y)
-	y = keras.layers.Dropout(pose.dropout)(y)
+					 kernel_initializer='glorot_uniform', use_bias=True)(y)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
 	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
-
-
 
 	#add layers to form a skip connection
 	x = keras.layers.Add()([pre_x, y])
+	
 	'''
-
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	x = keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid',
@@ -104,13 +102,12 @@ def create_model(pose):
 	x = keras.layers.BatchNormalization()(x)
 	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-
-	# x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
-	# 				 kernel_initializer='glorot_uniform', 
-	# 				 activation='relu', use_bias=True)(x)
-	# x = keras.layers.Dropout(pose.dropout)(x)
-	# x = keras.layers.Activation('relu')(x)
-	# x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
+	'''
+	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
+	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
 	#now flatten
 	x = keras.layers.Flatten()(x)
