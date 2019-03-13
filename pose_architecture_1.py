@@ -96,6 +96,7 @@ def create_model(pose):
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
 	model_final.compile(loss='mean_squared_error', 
-				optimizer=Adam(lr = pose.learning_rate))
+				optimizer=Adam(lr = pose.learning_rate,
+								decay = pose.learning_rate_decay))
 
 	return model_final
