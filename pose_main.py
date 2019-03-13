@@ -33,7 +33,7 @@ class POSE_NN(object):
 		self.version = version
 		self.load_model = load_model
 
-		self.imgsize = 300
+		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
 		self.test_size = 0.1
 
@@ -41,6 +41,7 @@ class POSE_NN(object):
 		self.dropout = 0.3
 
 		self.learning_rate = 0.0001
+		self.learning_rate_decay = 0.8
 
 
 		self.params = {'dim': (self.imgsize, self.imgsize),

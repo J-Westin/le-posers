@@ -53,33 +53,21 @@ def create_model(pose):
 	# Adding new trainable hidden and output layers to the model
 	pre_x = pretrained_model.layers[-1].output
 
-	'''
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-
-	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', 
-					 activation='relu', use_bias=True)(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
-	x = keras.layers.Activation('relu')(x)
-
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-
-	'''
 	
 	#make a second connection which quickly downsamples
-	y = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
+	y = keras.layers.Conv2D(filters=128, kernel_size=7, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(pretrained_model.input)
 	y = keras.layers.BatchNormalization()(y)
 	y = keras.layers.Activation('relu')(y)
 	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
 
-	y = keras.layers.Conv2D(filters=128, kernel_size=3, padding='valid',
+	y = keras.layers.Conv2D(filters=256, kernel_size=5, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(y)
 	y = keras.layers.BatchNormalization()(y)
 	y = keras.layers.Activation('relu')(y)
 	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
 
-	y = keras.layers.Conv2D(filters=512, kernel_size=3, padding='valid',
+	y = keras.layers.Conv2D(filters=512, kernel_size=5, padding='same',
 					 kernel_initializer='glorot_uniform', use_bias=True)(y)
 	y = keras.layers.BatchNormalization()(y)
 	y = keras.layers.Activation('relu')(y)
@@ -103,11 +91,20 @@ def create_model(pose):
 	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 	'''
+	x = keras.layers.Conv2D(filters=64, kernel_size=5, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
+
 	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(x)
 	x = keras.layers.BatchNormalization()(x)
 	x = keras.layers.Activation('relu')(x)
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
+
+
+	#pool across each kernel layer
+	# x = keras.layers.GlobalAveragePooling2D()(x)
+
 
 	#now flatten
 	x = keras.layers.Flatten()(x)
@@ -130,6 +127,7 @@ def create_model(pose):
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
 	model_final.compile(loss='mean_squared_error', 
-				optimizer=Adam(lr = pose.learning_rate))
+				optimizer=Adam(lr = pose.learning_rate,
+								decay = pose.learning_rate_decay))
 
 	return model_final

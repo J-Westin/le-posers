@@ -29,7 +29,7 @@ def create_model(pose):
 	27 for 2 skip connections
 	49 for 4 skip connections
 	'''
-	nl_from_pre = 27
+	nl_from_pre = 49
 
 
 	# Loading and freezing pre-trained model
@@ -60,14 +60,14 @@ def create_model(pose):
 
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
-	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
+	x = keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(x)
 	x = keras.layers.BatchNormalization()(x)
 	x = keras.layers.Activation('relu')(x)
 
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
-	x = keras.layers.Conv2D(filters=16, kernel_size=3, padding='valid',
+	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(x)
 	x = keras.layers.BatchNormalization()(x)
 	x = keras.layers.Activation('relu')(x)
