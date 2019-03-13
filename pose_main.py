@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_3 import create_model
+from pose_architecture_4 import create_model
 
 
 """ 
@@ -41,7 +41,7 @@ class POSE_NN(object):
 		self.dropout = 0.3
 
 		self.learning_rate = 0.0001
-		self.learning_rate_decay = 0.8
+		self.learning_rate_decay = 0
 
 
 		self.params = {'dim': (self.imgsize, self.imgsize),

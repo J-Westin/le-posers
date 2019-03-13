@@ -3,9 +3,6 @@ Create in this file your model. Make a new file with a different number
 in the filename if you want to drastically change the architecture
 
 Jelle Mes, 25-2-2019
-
-
-This architecture uses the first two layers of ResNet and builds on this
 """
 
 from keras.applications.resnet50 import preprocess_input
@@ -23,6 +20,11 @@ import keras
 import sys
 
 def create_model(pose):
+	"""
+	An architecture based on VGG19. Best results are obtained when using
+	all the layers except the output layer of VGG19. 
+	This specific version is linear, so NO SKIP CONNECTION.
+	"""
 	#number of layers to use from the pretrained network
 	# nl_from_pre = 8
 
@@ -51,31 +53,8 @@ def create_model(pose):
 	'''
 
 	# Adding new trainable hidden and output layers to the model
-	pre_x = pretrained_model.layers[-1].output
+	x = pretrained_model.layers[-1].output
 
-	
-	#make a second connection which quickly downsamples
-	y = keras.layers.Conv2D(filters=128, kernel_size=7, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(pretrained_model.input)
-	y = keras.layers.BatchNormalization()(y)
-	y = keras.layers.Activation('relu')(y)
-	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
-
-	y = keras.layers.Conv2D(filters=256, kernel_size=5, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(y)
-	y = keras.layers.BatchNormalization()(y)
-	y = keras.layers.Activation('relu')(y)
-	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
-
-	y = keras.layers.Conv2D(filters=512, kernel_size=5, padding='same',
-					 kernel_initializer='glorot_uniform', use_bias=True)(y)
-	y = keras.layers.BatchNormalization()(y)
-	y = keras.layers.Activation('relu')(y)
-	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
-
-	#add layers to form a skip connection
-	x = keras.layers.Add()([pre_x, y])
-	
 	'''
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 
@@ -103,13 +82,13 @@ def create_model(pose):
 
 
 	#pool across each kernel layer
-	# x = keras.layers.GlobalAveragePooling2D()(x)
+	x = keras.layers.GlobalAveragePooling2D()(x)
 
 
 	#now flatten
-	x = keras.layers.Flatten()(x)
-	x = keras.layers.Dense(15, activation = 'relu')(x)
-	x = keras.layers.Dropout(pose.dropout)(x)
+	# x = keras.layers.Flatten()(x)
+	# x = keras.layers.Dense(15, activation = 'relu')(x)
+	# x = keras.layers.Dropout(pose.dropout)(x)
 
 	#output layer
 	predictions = keras.layers.Dense(7, activation='linear')(x)

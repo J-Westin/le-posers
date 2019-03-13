@@ -3,9 +3,6 @@ Create in this file your model. Make a new file with a different number
 in the filename if you want to drastically change the architecture
 
 Jelle Mes, 25-2-2019
-
-
-This architecture uses the first two layers of ResNet and builds on this
 """
 
 from keras.applications.resnet50 import preprocess_input
@@ -23,6 +20,9 @@ import keras
 import sys
 
 def create_model(pose):
+	"""
+	A hand designed network that needs to be trained completely
+	"""
 	input = keras.layers.Input(shape=(pose.imgsize, pose.imgsize, 3))
 
 	x = keras.layers.Conv2D(filters=64, kernel_size=7, padding='valid',
