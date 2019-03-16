@@ -26,13 +26,14 @@ from pose_architecture_3 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version, load_model, loss="mse"):
+	def __init__(self, batch_size, epochs, version, load_model, loss = "mse", use_early_stop = False):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
 		self.version = version
 		self.load_model = load_model
 		self.loss = loss
+		self.use_early_stop = use_early_stop
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
@@ -119,13 +120,26 @@ class POSE_NN(object):
 		"""
 		#time training
 		starttime = time.time()
+		
+		# Choose the early stopping and learning rate configuration
+		early_stopping=keras.callbacks.EarlyStopping(monitor='val_loss',patience=10,verbose=1,
+		                             restore_best_weights=True,min_delta=1e-2)
+		reduce_lr=keras.callbacks.ReduceLROnPlateau(monitor = "val_loss", factor = 0.1,
+		                              patience = 4, verbose = 1,
+		                              min_delta = 1e-2)
+		save_model=keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
+		
+		if self.use_early_stop:
+			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),early_stopping,reduce_lr,save_model]
+		else:
+			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),save_model]
 
 		# Training the model (transfer learning)
 		history = self.model.fit_generator(
 			self.training_generator,
 			epochs=self.epochs,
 			validation_data=self.validation_generator,
-			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps')])
+			callbacks=callbacks)
 
 		train_duration = time.time() - starttime
 
@@ -174,12 +188,12 @@ class POSE_NN(object):
 			raise ValueError('The loss '+self.loss+' is not a valid loss.')
         
 
-def main(batch_size, epochs, version, load_model, loss_function):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function)
+	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop)
 
 	#train the network
 	pose.train_model()
@@ -195,9 +209,10 @@ parser.add_argument('--batch', help='number of samples in a batch.', default = 8
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 parser.add_argument('--loss', help='loss to use.', default = "pose")
+parser.add_argument('--use_early_stop', help='use early stop.', default = False)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.use_early_stop))
 
 
 '''
