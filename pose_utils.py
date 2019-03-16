@@ -225,7 +225,8 @@ if has_tf:
 
         """ DataGenerator for Keras to be used with fit_generator (https://keras.io/models/sequential/#fit_generator)"""
 
-        def __init__(self, preprocessor, label_list, speed_root, batch_size=32, dim=(224, 224), n_channels=3, shuffle=True):
+        def __init__(self, preprocessor, label_list, speed_root, batch_size=32,
+                     dim=(224, 224), n_channels=3, shuffle=True, randomRotations = False, seed = 1):
 
             # loading dataset
             self.image_root = os.path.join(speed_root, 'images', 'train')
@@ -240,6 +241,8 @@ if has_tf:
             self.n_channels = n_channels
             self.shuffle = shuffle
             self.indexes = None
+            self.randomRotations = randomRotations
+            self.seed = seed
             self.on_epoch_end()
 
         def __len__(self):
@@ -282,13 +285,60 @@ if has_tf:
             # Generate data
             for i, ID in enumerate(list_IDs_temp):
                 img_path = os.path.join(self.image_root, ID)
-                img = keras_image.load_img(img_path, target_size=self.dim)
+                # img = keras_image.load_img(img_path, target_size=self.dim)
+                img = keras_image.load_img(img_path)
+                q, r = self.labels[ID]['q'], self.labels[ID]['r']
+                if self.randomRotations:
+                    # generate a random angle
+                    angle = np.random.uniform(low=0.0, high=360.0)
+                    
+                    # rotate image
+                    img = img.rotate(-angle)
+                    
+                    # compute new location
+                    angle = angle/180*np.pi
+                    r = [np.cos(angle)*r[0] - np.sin(angle)*r[1],
+                         np.sin(angle)*r[0] + np.cos(angle)*r[1],
+                         r[2]]
+                    
+                    # compute new orientation
+                    rotationAxis = [0, 0, 1]
+                    qRot = [np.cos(angle/2),
+                            np.sin(angle/2)*rotationAxis[0],
+                            np.sin(angle/2)*rotationAxis[1],
+                            np.sin(angle/2)*rotationAxis[2]]
+                    w0, x0, y0, z0 = q
+                    w1, x1, y1, z1 = qRot
+                    q = [-x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0,
+                          x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,
+                         -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
+                          x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0]
+                # saves a bunch of images for debugging
+                if False:
+                    prec = 3
+                    # fig, axes = plt.figure(figsize=(10, 5))
+                    plt.figure('test')
+                    plt.title('Index: '+ str(ID) +
+                                 '\nRotation angle: ' + str((round(angle*180/np.pi))) + ' degree' +
+                                 '\nPosition: [' + str(round(r[0], prec)) + ', ' + str(round(r[1], prec))+', '+str(round(r[2], prec))+']'+
+                                 '\nOrientation: [' + str(round(q[0], prec)) + ', ' + str(round(q[1], prec))+', '+str(round(q[2], prec))+', '+str(round(q[3], prec))+']')
+                    ax = plt.gca()
+                    ax.imshow(img)
+                    xa, ya = project(q, r)
+                    ax.arrow(xa[0], ya[0], xa[1] - xa[0], ya[1] - ya[0], head_width=6, color='r')
+                    ax.arrow(xa[0], ya[0], xa[2] - xa[0], ya[2] - ya[0], head_width=6, color='g')
+                    ax.arrow(xa[0], ya[0], xa[3] - xa[0], ya[3] - ya[0], head_width=6, color='b')
+                    ax.axis('off')
+                    plt.savefig(f'TestOutput_{ID}.png', dpi = 1000, bbox_inches = 'tight')
+                    plt.close() 
+
+                img = img.resize(self.dim)
+
+                # flatten and output
                 x = keras_image.img_to_array(img)
                 x = self.preprocessor(x)
                 X[i,] = x
-
-                q, r = self.labels[ID]['q'], self.labels[ID]['r']
-                y[i] = np.concatenate([q, r])
+                y[i] = np.concatenate([q, r])   
 
             return X, y
 else:

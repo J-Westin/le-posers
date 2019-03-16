@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_4 import create_model
+from pose_architecture_3 import create_model
 
 
 """ 
@@ -47,10 +47,12 @@ class POSE_NN(object):
 		self.params = {'dim': (self.imgsize, self.imgsize),
 				  'batch_size': self.batch_size,
 				  'n_channels': 3,
-				  'shuffle': True}
+				  'shuffle': True,
+				  'randomRotations': True,
+				  'seed': 1}
 
 		#### constant parameters
-		self.dataset_loc = '/local/s1530194/speed'
+		self.dataset_loc = '../../speed'
 
 		self.output_loc = f'./Version_{self.version}/'
 		self.model_summary_name = f'model_summary_v{self.version}.txt'
