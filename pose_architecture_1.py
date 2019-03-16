@@ -95,7 +95,7 @@ def create_model(pose):
 	#also make a flow chart of the model
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
-	model_final.compile(loss='mean_squared_error', 
+	model_final.compile(loss=pose.loss_function, 
 				optimizer=Adam(lr = pose.learning_rate,
 								decay = pose.learning_rate_decay))
 

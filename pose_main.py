@@ -1,7 +1,7 @@
 import json
-import tensorflow
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
+import tensorflow as tf
 import keras
 from sklearn import model_selection
 
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_4 import create_model
+from pose_architecture_3 import create_model
 
 
 """ 
@@ -26,12 +26,13 @@ from pose_architecture_4 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version, load_model):
+	def __init__(self, batch_size, epochs, version, load_model, loss="mse"):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
 		self.version = version
 		self.load_model = load_model
+		self.loss = loss
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
@@ -50,7 +51,7 @@ class POSE_NN(object):
 				  'shuffle': True}
 
 		#### constant parameters
-		self.dataset_loc = '/local/s1530194/speed'
+		self.dataset_loc = 'F:\Files\Downloads\Kelvins\speed'
 
 		self.output_loc = f'./Version_{self.version}/'
 		self.model_summary_name = f'model_summary_v{self.version}.txt'
@@ -148,13 +149,33 @@ class POSE_NN(object):
 		
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f) 
+			
+	def loss_function(self, x, y):
+		"""
+		Loss function to be used during training. 
+		If the option "mse" is used, it uses mean squared error,
+		if "pose" is used, it uses the cost from the competition.
+		"""
+		if self.loss=="mse":
+			return tf.losses.mean_squared_error(x,y)
+		elif self.loss=="pose":
+			nn_r=x[:,0:2]
+			gt_r=y[:,0:2]
+			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
+			nn_q=tf.nn.l2_normalize(x[:,3:6],axis=1)
+			gt_q=y[:,3:6]
+			score_q=tf.reduce_mean(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1)))
+			return tf.add(score_r,score_q)
+		else:
+			raise ValueError('The loss '+self.loss+' is not a valid loss.')
+        
 
-def main(batch_size, epochs, version, load_model):
+def main(batch_size, epochs, version, load_model, loss_function):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model)
+	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function)
 
 	#train the network
 	pose.train_model()
@@ -166,12 +187,13 @@ def main(batch_size, epochs, version, load_model):
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 20)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
+parser.add_argument('--loss', help='loss to use.', default = "pose")
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss))
 
 
 '''
