@@ -30,6 +30,6 @@ def create_model(pose):
 	#make a flow chart of the model
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_0.png', show_shapes=True, show_layer_names=True)
 
-	model_final.compile(loss='mean_squared_error', optimizer='adam')
+	model_final.compile(loss=pose.loss_function, optimizer='adam')
 
 	return model_final
