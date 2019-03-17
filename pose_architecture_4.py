@@ -2,7 +2,7 @@
 Create in this file your model. Make a new file with a different number
 in the filename if you want to drastically change the architecture
 
-Pablo Gomez Perez, 16-3-2019
+Jelle Mes, 25-2-2019
 """
 
 from keras.applications.resnet50 import preprocess_input
@@ -21,8 +21,10 @@ import sys
 
 def create_model(pose):
 	"""
-	An architecture based on VGG19 with extra fully connected layers.
-	This specific version is linear, so NO SKIP CONNECTION.
+	An architecture based on VGG19. Best results are obtained when using
+	all the layers except the output layer of VGG19. 
+	This specific version utilizes a skip connection which needs to
+	be completely trained.
 	"""
 	#number of layers to use from the pretrained network
 	# nl_from_pre = 8
@@ -52,43 +54,45 @@ def create_model(pose):
 	'''
 
 	# Adding new trainable hidden and output layers to the model
-	x = pretrained_model.layers[-1].output
+	pre_x = pretrained_model.layers[-1].output
 
-	'''
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-
-	x = keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(x)
-	x = keras.layers.BatchNormalization()(x)
-	x = keras.layers.Activation('relu')(x)
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-
-	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(x)
-	x = keras.layers.BatchNormalization()(x)
-	x = keras.layers.Activation('relu')(x)
-	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
-	'''
-	x = keras.layers.Conv2D(filters=64, kernel_size=5, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(x)
-	x = keras.layers.BatchNormalization()(x)
-	x = keras.layers.Activation('relu')(x)
-
-	x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
-					 kernel_initializer='glorot_uniform', use_bias=True)(x)
-	x = keras.layers.BatchNormalization()(x)
-	x = keras.layers.Activation('relu')(x)
 	
+	#make a second connection which quickly downsamples
+	y = keras.layers.Conv2D(filters=128, kernel_size=7, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(pretrained_model.input)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
+	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
+
+	y = keras.layers.Conv2D(filters=256, kernel_size=5, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(y)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
+	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
+
+	y = keras.layers.Conv2D(filters=512, kernel_size=5, padding='same',
+					 kernel_initializer='glorot_uniform', use_bias=True)(y)
+	y = keras.layers.BatchNormalization()(y)
+	y = keras.layers.Activation('relu')(y)
+	y = keras.layers.MaxPooling2D(pool_size=(3,3))(y)
+
+	#add layers to form a skip connection
+	x = keras.layers.Add()([pre_x, y])
 	
+	#the last layers
+	x = keras.layers.Conv2D(filters=48, kernel_size=3, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	x = keras.layers.BatchNormalization()(x)
+	x = keras.layers.Activation('relu')(x)
+
+	# x = keras.layers.Conv2D(filters=32, kernel_size=3, padding='valid',
+	# 				 kernel_initializer='glorot_uniform', use_bias=True)(x)
+	# x = keras.layers.BatchNormalization()(x)
+	# x = keras.layers.Activation('relu')(x)
+
+
 	#pool across each kernel layer
-#	x = keras.layers.GlobalAveragePooling2D()(x)
-	
-	# Some fully connected layers
-	x = keras.layers.Flatten()(x)
-	x = keras.layers.Dense(32, activation='relu', kernel_initializer='glorot_uniform')(x)
-	x = keras.layers.Dense(16, activation='relu', kernel_initializer='glorot_uniform')(x)
-
-
+	x = keras.layers.GlobalAveragePooling2D()(x)
 
 
 	#now flatten
@@ -107,13 +111,12 @@ def create_model(pose):
 		pass
 	#save summary to file
 	model_final.summary(print_fn = pose.savePrint)
-	
 
 	#also make a flow chart of the model
 	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
 
-	model_final.compile(loss=pose.loss_function, 
-				optimizer=Adam(lr = pose.learning_rate,
+	model_final.compile(loss=poss.loss_function, 
+								optimizer=Adam(lr = pose.learning_rate,
 								decay = pose.learning_rate_decay))
 
 	return model_final
