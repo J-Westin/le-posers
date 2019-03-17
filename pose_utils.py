@@ -400,10 +400,12 @@ class OutputResults(object):
             print('Saving model to {}'.format(filename))
             model.save(filename)
         if load:
+            import keras.losses
+            keras.losses.loss_function = self.pose_nn.loss_function
             if not os.path.exists(filename):
                 print('Cannot find specified model, check if path or filename is correct')
                 return
             print('Loading model from {0}'.format(filename))
-            model = load_model(filename)
+            model = keras.model.load_model(filename)
             
             return model
