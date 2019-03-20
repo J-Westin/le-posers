@@ -64,10 +64,10 @@ def create_model(pose):
 	x = keras.layers.GlobalAveragePooling2D()(x)
 
 	#output layer
-	predictions = keras.layers.Dense(7, activation='linear')(x)
+	predictions = keras.layers.Dense(7, activation = 'linear')(x)
 
 	#combine model
-	model_final = keras.models.Model(inputs=input, outputs=predictions)
+	model_final = keras.models.Model(inputs = input, outputs = predictions)
 
 	#reset summary file
 	with open(pose.output_loc + pose.model_summary_name, 'w') as f:
@@ -76,10 +76,10 @@ def create_model(pose):
 	model_final.summary(print_fn = pose.savePrint)
 
 	#also make a flow chart of the model
-	plot_model(model_final, to_file=f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes=True, show_layer_names=True)
+	plot_model(model_final, to_file = f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes = True, show_layer_names = True)
 
-	model_final.compile(loss=pose.loss_function, 
-				optimizer=Adam(lr = pose.learning_rate,
-								decay = pose.learning_rate_decay))
+	model_final.compile(loss = pose.loss_function, 
+							optimizer = Adam(lr = pose.learning_rate,
+							decay = pose.learning_rate_decay))
 
 	return model_final

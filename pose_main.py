@@ -1,4 +1,9 @@
 import json
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 import tensorflow as tf
@@ -10,9 +15,6 @@ import os
 import argparse
 import time
 
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
@@ -42,10 +44,10 @@ class POSE_NN(object):
 		#dropout percentage
 		self.dropout = 0.3
 
-		self.learning_rate = 0.0001
+		self.learning_rate = 0.001
 		self.learning_rate_decay = 0
 
-
+		#parameters for the datagenerator
 		self.params = {'dim': (self.imgsize, self.imgsize),
 				  'batch_size': self.batch_size,
 				  'n_channels': 3,
@@ -54,8 +56,8 @@ class POSE_NN(object):
 				  'seed': 1}
 
 		#### constant parameters
-		self.dataset_loc = '../../speed'
-
+		# self.dataset_loc = '../../speed'
+		self.dataset_loc = '/local/s1530194/speed'
 
 
 		self.output_loc = f'./Version_{self.version}/'
@@ -122,12 +124,13 @@ class POSE_NN(object):
 		starttime = time.time()
 		
 		# Choose the early stopping and learning rate configuration
-		early_stopping=keras.callbacks.EarlyStopping(monitor='val_loss',patience=10,verbose=1,
-		                             restore_best_weights=True,min_delta=1e-2)
-		reduce_lr=keras.callbacks.ReduceLROnPlateau(monitor = "val_loss", factor = 0.1,
-		                              patience = 4, verbose = 1,
-		                              min_delta = 1e-2)
-		save_model=keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
+		early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
+						patience = 10, verbose = 1,
+						restore_best_weights = True, min_delta = 1e-2)
+		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
+						factor = 0.2, patience = 3, verbose = 1,
+						min_delta = 1e-2, min_lr = 1e-6)
+		save_model = keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
 		
 		if self.use_early_stop:
 			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),early_stopping,reduce_lr,save_model]
@@ -174,9 +177,11 @@ class POSE_NN(object):
 		If the option "mse" is used, it uses mean squared error,
 		if "pose" is used, it uses the cost from the competition.
 		"""
-		if self.loss=="mse":
+		if self.loss == 'MSE':
 			return tf.losses.mean_squared_error(x,y)
-		elif self.loss=="pose":
+		elif self.loss == 'MAPE':
+			return tf.reduce_mean(tf.abs(tf.divide(tf.subtract(x,y),(y + 1e-10))))
+		elif self.loss == 'POSE':
 			nn_r=x[:,0:2]
 			gt_r=y[:,0:2]
 			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
@@ -185,8 +190,8 @@ class POSE_NN(object):
 			score_q=tf.reduce_mean(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1)))
 			return tf.add(score_r,score_q)
 		else:
-			raise ValueError('The loss '+self.loss+' is not a valid loss.')
-        
+			raise ValueError('The loss '+ self.loss +' is not a valid loss.')
+		
 
 def main(batch_size, epochs, version, load_model, loss_function, use_early_stop):
 
@@ -208,8 +213,8 @@ parser.add_argument('--epochs', help='Number of epochs for training.', default =
 parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
-parser.add_argument('--loss', help='loss to use.', default = "pose")
-parser.add_argument('--use_early_stop', help='use early stop.', default = False)
+parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
+parser.add_argument('--use_early_stop', help='use early stopping.', default = False)
 args = parser.parse_args()
 
 main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.use_early_stop))
@@ -223,5 +228,5 @@ model.layers.pop()
 
 Freeze layers
 for layer in model.layers:
-    layer.trainable = False
+	layer.trainable = False
 '''
