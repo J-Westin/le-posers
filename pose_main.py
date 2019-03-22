@@ -187,7 +187,7 @@ class POSE_NN(object):
 			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
 			nn_q=tf.nn.l2_normalize(x[:,3:6],axis=1)
 			gt_q=y[:,3:6]
-			score_q=tf.reduce_mean(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1)))
+			score_q=tf.reduce_mean(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])+tf.tensordot(nn_q[:,1:3],-gt_q[:,1:3],[1,1]),-1,1)))
 			return tf.add(score_r,score_q)
 		else:
 			raise ValueError('The loss '+ self.loss +' is not a valid loss.')
