@@ -174,23 +174,60 @@ class POSE_NN(object):
 	def loss_function(self, x, y):
 		"""
 		Loss function to be used during training. 
-		If the option "mse" is used, it uses mean squared error,
-		if "pose" is used, it uses the cost from the competition.
+		If the option "MSE" is used, it uses mean squared error,
+		if the option "MAPE" is usedm it uses the mean average percent error,
+		if "POSE" is used, it uses the cost from the competition,
+		if "NPOSE" is used, a smoother version of teh scoring function is used.
 		"""
 		if self.loss == 'MSE':
 			return tf.losses.mean_squared_error(x,y)
 		elif self.loss == 'MAPE':
 			return tf.reduce_mean(tf.abs(tf.divide(tf.subtract(x,y),(y + 1e-10))))
 		elif self.loss == 'POSE':
-			nn_r=x[:,0:2]
-			gt_r=y[:,0:2]
+			nn_r=x[:,0:3]
+			gt_r=y[:,0:3]
 			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
-			nn_q=tf.nn.l2_normalize(x[:,3:6],axis=1)
-			gt_q=y[:,3:6]
-			score_q=tf.reduce_mean(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])+tf.tensordot(nn_q[:,1:3],-gt_q[:,1:3],[1,1]),-1,1)))
+			nn_q_norm=tf.norm(x[:,3:7],axis=1)
+			nn_q=tf.stack([tf.divide(x[:,3],nn_q_norm),
+				   tf.divide(x[:,4],nn_q_norm),
+				   tf.divide(x[:,5],nn_q_norm),
+				   tf.divide(x[:,6],nn_q_norm)],
+				   axis=1)
+			gt_q=y[:,3:7]
+			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1]),-1,1))))
+			return tf.add(score_r,score_q)
+		elif self.loss == 'NPOSE':
+			nn_r=x[:,0:3]
+			gt_r=y[:,0:3]
+			score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
+			nn_q_norm=tf.norm(x[:,3:7],axis=1)
+			nn_q=tf.stack([tf.divide(x[:,3],nn_q_norm),
+				   tf.divide(x[:,4],nn_q_norm),
+				   tf.divide(x[:,5],nn_q_norm),
+				   tf.divide(x[:,6],nn_q_norm)],
+				   axis=1)
+			gt_q=y[:,3:7]
+			score_q=tf.reduce_mean(tf.square(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1])-1))
 			return tf.add(score_r,score_q)
 		else:
-			raise ValueError('The loss '+ self.loss +' is not a valid loss.')
+			raise ValueError('The loss "'+self.loss+'" is not a valid loss.')
+			
+	def metrics_function(self, x, y):
+		"""
+		Final score function used in the competition.
+		"""
+		nn_r=x[:,0:3]
+		gt_r=y[:,0:3]
+		score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
+		nn_q_norm=tf.norm(x[:,3:7],axis=1)
+		nn_q=tf.stack([tf.divide(x[:,3],nn_q_norm),
+			   tf.divide(x[:,4],nn_q_norm),
+			   tf.divide(x[:,5],nn_q_norm),
+			   tf.divide(x[:,6],nn_q_norm)],
+			   axis=1)
+		gt_q=y[:,3:7]
+		score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1]),-1,1))))
+		return tf.add(score_r,score_q)
 		
 
 def main(batch_size, epochs, version, load_model, loss_function, use_early_stop):
