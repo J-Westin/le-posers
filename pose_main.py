@@ -194,7 +194,7 @@ class POSE_NN(object):
 				   tf.divide(x[:,6],nn_q_norm)],
 				   axis=1)
 			gt_q=y[:,3:7]
-			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1]),-1,1))))
+			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 			return tf.add(score_r,score_q)
 		elif self.loss == 'NPOSE':
 			nn_r=x[:,0:3]
@@ -207,7 +207,7 @@ class POSE_NN(object):
 				   tf.divide(x[:,6],nn_q_norm)],
 				   axis=1)
 			gt_q=y[:,3:7]
-			score_q=tf.reduce_mean(tf.square(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1])-1))
+			score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
 			return tf.add(score_r,score_q)
 		else:
 			raise ValueError('The loss "'+self.loss+'" is not a valid loss.')
@@ -226,7 +226,7 @@ class POSE_NN(object):
 			   tf.divide(x[:,6],nn_q_norm)],
 			   axis=1)
 		gt_q=y[:,3:7]
-		score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.multiply(gt_q[:,0],nn_q[:,0])-tf.tensordot(nn_q[:,1:4],gt_q[:,1:4],[1,1]),-1,1))))
+		score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 		return tf.add(score_r,score_q)
 		
 
