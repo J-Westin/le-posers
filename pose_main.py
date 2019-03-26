@@ -214,10 +214,10 @@ parser.add_argument('--batch', help='number of samples in a batch.', default = 8
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
-parser.add_argument('--use_early_stop', help='use early stopping.', default = False)
+parser.add_argument('--early_stopping', help='use early stopping.', default = False)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.use_early_stop))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping))
 
 
 '''
