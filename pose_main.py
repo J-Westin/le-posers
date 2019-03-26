@@ -18,7 +18,7 @@ import time
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_3 import create_model
+from pose_architecture_4 import create_model
 
 
 """ 
@@ -125,7 +125,7 @@ class POSE_NN(object):
 		
 		# Choose the early stopping and learning rate configuration
 		early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
-						patience = 10, verbose = 1,
+						patience = 15, verbose = 1,
 						restore_best_weights = True, min_delta = 1e-2)
 		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
 						factor = 0.2, patience = 3, verbose = 1,
