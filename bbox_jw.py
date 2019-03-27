@@ -22,16 +22,19 @@ from tqdm import tqdm
 ## ~~ Settings ~~ ##
 #  Change these to match your setup
 
-# dataset_dir = "..\\speed"	  # Root directory of dataset (contains /images, LICENSE.MD, *.json)
-dataset_dir = '/data/s1530194/speed'
+dataset_dir = "..\\speed"	  # Root directory of dataset (contains /images, LICENSE.MD, *.json)
+output_loc = 'bbox_jw'
+#dataset_dir = '/data/s1530194/speed'
 default_margins = (.2, .2, .1) # (x, y, z) offset between satellite body and rectangular cage used as cropping target
+downscaling_factor = 1./12.
 
 recreate_json	= False # Creates a new JSON file with bbox training label even if one already exists
-#recreate_network = True # Creates a new neural network even if one has already been saved
 
 train_dir = os.path.join(dataset_dir, "images/train")
 
-output_loc = 'bbox_jw'
+input_width  = int(Camera.nu*downscaling_factor)
+input_height = int(Camera.nv*downscaling_factor)
+
 #check if the output folder is present and if not, make one
 checkFolders([output_loc])
 
@@ -51,7 +54,7 @@ def create_bbox_json(margins=default_margins):
 def create_bb_model():
 	bb_model = Sequential()
 	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(int(Camera.nv/16), int(Camera.nu/16), 1), padding='valid', use_bias=True))
+	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(input_height, input_width, 1), padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
@@ -65,17 +68,6 @@ def create_bb_model():
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
-	
-	
-
-	# for k in range(2,7):
-		# bb_model.add(BatchNormalization())
-		# bb_model.add(Activation('softmax'))
-		# bb_model.add(MaxPooling2D(pool_size=(2,2)))
-		# bb_model.add(Conv2D(filters=32, kernel_size=5, padding='valid', use_bias=True))
-	
-	# bb_model.add(BatchNormalization())
-	# bb_model.add(Activation('softmax'))
 	
 	
 	bb_model.add(Flatten())
@@ -183,7 +175,7 @@ def load_single_img(current_label):
 	
 	current_filepath = os.path.join(train_dir, current_filename)
 	current_image_pil = Image.open(current_filepath)
-	current_image_pil = current_image_pil.resize((120, 75), resample=Image.BICUBIC)
+	current_image_pil = current_image_pil.resize((input_width, input_height), resample=Image.BICUBIC)
 	current_image_arr = np.array(current_image_pil, dtype=float)/256.
 	current_image_pil.close()
 
@@ -191,6 +183,7 @@ def load_single_img(current_label):
 
 def train_bb_model(n_images, model):
 	labels = create_bbox_json()
+	np.random.shuffle(labels)
 	
 	image_array = []
 	label_array = []
@@ -231,7 +224,7 @@ bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 
 print('Commencing training')
-history, image_array, label_array = train_bb_model(6000, bb_model)
+history, image_array, label_array = train_bb_model(1000, bb_model)
 train_loss = history.history['loss']
 test_loss = history.history['val_loss']
 
