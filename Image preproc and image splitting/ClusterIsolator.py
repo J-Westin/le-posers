@@ -10,6 +10,8 @@ Need to find a way to detect and avoid that, but being lenient with the Threshol
 import numpy as np
 import cv2 
 import time
+import matplotlib.pyplot as plt
+from scipy import fftpack
 
 def NormalizeMatrix(Matrix, rescale):
     "Normalize a matrix between 0 and rescale value"
@@ -17,6 +19,12 @@ def NormalizeMatrix(Matrix, rescale):
     Matrix = np.round((Matrix/Max)*rescale)
     
     return Matrix
+
+def plot_spectrum(im_fft):
+    from matplotlib.colors import LogNorm
+    # A logarithmic colormap is necessary (linear scale shows only the central peak much higher than the amplitude at higher frequencies)
+    plt.imshow(np.abs(im_fft), norm=LogNorm()) #sets the scale automatically
+    plt.colorbar()
 
 def PlayWithImage( img ):
     start = time.time()
@@ -38,12 +46,87 @@ def PlayWithImage( img ):
     CellMap = np.zeros((CellsH,CellsW))    # Binary map of the cells
     BinarySelectionMap = np.zeros(img.shape)
     
+    ###########################################################################
+    # Insert of Tiberiu's corona analysis code
+    #########################################
+    
+    
+    ############################################################
+    # Compute the 2d FFT of the input image
+    ############################################################
+    
+    M, N = img.shape
+    print (M)
+    print (N)
+    im_fft = fftpack.fft2(img) #Computes the 2D discrete aperiod fourier transform. Does NOT divide for M*N
+    im_fft = im_fft / (M*N) #Dimensionality suggests to divide for total number of pixels (see literature)
+    im_fft = np.fft.fftshift(im_fft)#To reconstruct the image, only one quadrant would be necessary. However, to view the patterns, is better to center in the origin the spectrum.    
+    
+    plt.figure()
+    plot_spectrum(im_fft)#plots the spectrum in logaritmic scale normalized on the total number of pixels
+    plt.title('Normalized Fourier transform (log)')
+    
+    ############################################################
+    # Filter in FFT
+    ############################################################
+    
+    # In the lines following, we'll make a copy of the original spectrum and
+    # truncate coefficients.
+    
+    # Define the fraction of coefficients (in each direction) we keep
+    #keep_fraction = 0.5
+    
+    # Call ff a copy of the original transform. Numpy arrays have a copy
+    # method for this purpose.
+    im_fft2 = im_fft.copy()
+    
+    
+    radiusmax=Rmax*min(M,N)/2 # radiuses of corona of filtering is a factor of the smaller dimension of the image, by choice
+    radiusmin=Rmin*min(M,N)/2 
+    for m in range (0, M):
+       for n in range (0,N):
+          if (m-M/2)**2+(n-N/2)**2 > radiusmax**2: #coordinate start from top left corner
+              im_fft2[m,n]=0
+          elif (m-M/2)**2+(n-N/2)**2 < radiusmin**2:
+              im_fft2[m,n]=0 
+    plt.figure()
+    plot_spectrum(im_fft2)
+    plt.title('Filtered Spectrum')
+    
+    
+    ############################################################
+    # Reconstruct the final image
+    ############################################################
+    
+    # Reconstruct the denoised image from the filtered spectrum, keep only the
+    # real part for display.
+    im_new = fftpack.ifft2(np.fft.ifftshift(im_fft2)).real 
+    maxres=np.max(im_new)
+    plt.figure()
+    plt.imshow(im_new, plt.cm.gray)
+    plt.title('Reconstructed Image from Filtered Spectrum')
+    for m in range (0, M):
+       for n in range (0,N):
+            if (im_new[m,n]<0.2*maxres): #created a thresold for making black the non bright earth features
+                im_new[m,n]=0
+    plt.figure()
+    plt.show()
+    
+    im_new = NormalizeMatrix(im_new,255)
+    im_new[im_new > Threshold] = 255
+    ContentSum = np.sum(im_new[im_new > Threshold])/255
+    ContentThresholdNew = ContentThreshold*ContentSum; # Threshold is CT % of total activated pixels
+    im_new = im_new.astype(np.uint8)
+    
+    
+    
+    cv2.imshow('Fourier Deconstruction', cv2.resize(im_new, (WindowW,WindowH)))
     # cc is a simple counter but it is also used as a Cell ID, to couple it to its origin x,y coordinates in CellInfo
     cc = 0
     for i in range(0,CellsW):
         for j in range(0,CellsH):
             Cellsum = 0
-            Cell = img[j*SectionSize: (j+1)*SectionSize -1, i*SectionSize: (i+1)* SectionSize -1]
+            Cell = im_new[j*SectionSize: (j+1)*SectionSize -1, i*SectionSize: (i+1)* SectionSize -1]
             BinarySelection = np.zeros(Cell.shape)*0
             BinarySelection[Cell>Threshold] = 1
             Cellsum = np.sum(BinarySelection)
@@ -53,12 +136,9 @@ def PlayWithImage( img ):
             CellInfoCluster[2,j,i] = Cellsum
             CellInfo[0,cc] = i*SectionSize
             CellInfo[1,cc] = j*SectionSize
-            CellInfo[2,cc] = Cellsum
-            
-
-            
+            CellInfo[2,cc] = Cellsum  
              
-            if Cellsum > ContentThreshold:
+            if Cellsum > ContentThresholdNew:
                 BinarySelectionMap[j*SectionSize: (j+1)*SectionSize -1,i*SectionSize: (i+1)* SectionSize -1] = 255
                 CellMap[j,i] = 1
                 CellInfo[3,cc] = cc
@@ -274,8 +354,8 @@ def PlayWithImage( img ):
     
     # These things keep opening fullscreen and I'm not sure how to downsize them.
     
-    #cv2.imshow('Original', cv2.resize(imgo, (WindowW,WindowH)))
-    #cv2.imshow('Normalized', cv2.resize(img, (WindowW,WindowH)))
+    cv2.imshow('Original', cv2.resize(imgo, (WindowW,WindowH)))
+    cv2.imshow('Normalized', cv2.resize(img, (WindowW,WindowH)))
     cv2.imshow('Binary cell map', cv2.resize(BinarySelectionimg, (WindowW, WindowH)))
     #cv2.imshow('Cell Heatmap', cv2.resize(CellHeatMapVisual, (WindowW, WindowH)))
     #cv2.imshow('Extraction', SuperSelection)
@@ -293,12 +373,15 @@ def PlayWithImage( img ):
 
 # Can also be used as input variables to run as indep. function    
 
-SectionSize = 40 #px
+SectionSize = 120 #px
 Threshold = 20; # grayscale value threshold for binary selection, values below are ignored. (space is below!)
-ContentThreshold = 0.3*SectionSize*SectionSize #min number of binary pixels within a cell required to flag it as active
+ContentThreshold = 0.02 #min number of binary pixels within a cell required to flag it as active
 R = 4; # Cell superselection range, larger makes the crop larger. Smaller makes it smaller, but risks losing some data
 MaxGrayScale = 255 # Max uint8 value for the grayscale display.
 
+## Fourier setup
+Rmax = 0.55
+Rmin = 0.35
 
 TargetImgW = 500
 TargetImgH = 500
@@ -307,8 +390,8 @@ TargetImgH = 500
 WindowW = 960
 WindowH = 600
 #images to analyse in a single run. replacing it each run was tiresome.
-images = ["test.jpg", "test2.jpg", "test3.jpg", "test4.jpg"]
-LazyOverride = 5; # override the loop without having to change the array of names
+images = ["test.jpg", "test2.jpg", "test3.jpg", "test4.jpg", "test5.jpg"]
+LazyOverride = 2; # override the loop without having to change the array of names
 
 Nloops = np.min([len(images), LazyOverride])
 

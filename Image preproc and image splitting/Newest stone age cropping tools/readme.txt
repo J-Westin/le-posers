@@ -1,0 +1,2 @@
+Put these in the folder below the training images folder, use the tester to randomly pull images to see how well it performs over a random set of data.
+V2a performs well but is slow, V3a is a shitton faster but still needs tweaking to adjust for the image rescaling artifacts.
