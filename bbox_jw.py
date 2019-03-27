@@ -9,7 +9,7 @@ from PIL import Image
 
 import keras
 
-from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense
+from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout
 from keras.models import Sequential
 
 from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera
@@ -20,7 +20,7 @@ from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camer
 dataset_dir = "..\\speed"      # Root directory of dataset (contains /images, LICENSE.MD, *.json)
 default_margins = (.2, .2, .1) # (x, y, z) offset between satellite body and rectangular cage used as cropping target
 
-recreate_json    = True # Creates a new JSON file with bbox training label even if one already exists
+recreate_json    = False # Creates a new JSON file with bbox training label even if one already exists
 #recreate_network = True # Creates a new neural network even if one has already been saved
 
 train_dir = os.path.join(dataset_dir, "images\\train")
@@ -73,10 +73,13 @@ def create_bb_model():
     
     bb_model.add(Flatten())
     
-    intermediate_sizes = [400, 200, 100, 50, 20, 10, 6, 4]
+    intermediate_sizes = [50, 20, 4]
     
     for layersize in intermediate_sizes:
         bb_model.add(Dense(units=layersize, activation="softmax"))
+        
+        if layersize != 4:
+            bb_model.add(Dropout(0.3))
     
     return bb_model
 
@@ -126,7 +129,7 @@ bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 for k in range(1,11):
     print ("Commencing round", k)
-    train_bb_model(1000, bb_model)
+    train_bb_model(100, bb_model)
     
     print ("Saving weights")
     bb_model.save_weights("bbox_jw_model\\weights.h5")
