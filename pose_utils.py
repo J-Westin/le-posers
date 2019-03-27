@@ -210,7 +210,7 @@ class SatellitePoseEstimationDataset:
         y_min = max(y_min, 0)
         y_max = min(y_max, Camera.nv)
         
-        return [x_min, x_max, y_min, y_max]
+        return [x_min/Camera.nu, x_max/Camera.nu, y_min/Camera.nv, y_max/Camera.nv]
     
     def generate_bbox_json(self, margins, output_filename="train_bbox.json"):
         bbox_data_list = []
