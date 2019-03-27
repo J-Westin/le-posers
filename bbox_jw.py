@@ -31,9 +31,11 @@ recreate_json	= False # Creates a new JSON file with bbox training label even if
 
 train_dir = os.path.join(dataset_dir, "images/train")
 
-output_loc = 'bbox_jw'
+output_loc = 'bbox_jw_2'
 #check if the output folder is present and if not, make one
 checkFolders([output_loc])
+
+imgsize = (240, 150) #used to be(120, 75)
 
 def create_bbox_json(margins=default_margins):
 	bbox_json_filepath_expected = os.path.join(dataset_dir, "train_bbox.json")
@@ -51,7 +53,7 @@ def create_bbox_json(margins=default_margins):
 def create_bb_model():
 	bb_model = Sequential()
 	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(int(Camera.nv/16), int(Camera.nu/16), 1), padding='valid', use_bias=True))
+	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(imgsize[1], imgsize[0], 1), padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
@@ -61,7 +63,7 @@ def create_bb_model():
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
-	bb_model.add(Conv2D(filters=16, kernel_size=5, padding='valid', use_bias=True))
+	bb_model.add(Conv2D(filters=32, kernel_size=5, padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
@@ -84,6 +86,7 @@ def create_bb_model():
 	
 	for layersize in intermediate_sizes:
 		bb_model.add(Dense(units=layersize, activation="relu"))
+		bb_model.add(Dropout(0.3))
 		
 	#now make the output layer
 	bb_model.add(Dense(units=4, activation="sigmoid"))
@@ -183,32 +186,57 @@ def load_single_img(current_label):
 	
 	current_filepath = os.path.join(train_dir, current_filename)
 	current_image_pil = Image.open(current_filepath)
-	current_image_pil = current_image_pil.resize((120, 75), resample=Image.BICUBIC)
+	current_image_pil = current_image_pil.resize(imgsize, resample=Image.BICUBIC)
 	current_image_arr = np.array(current_image_pil, dtype=float)/256.
 	current_image_pil.close()
 
 	return current_bbox, current_image_arr
 
-def train_bb_model(n_images, model):
+def train_bb_model(n_images, model, n_val_set = 20):
 	labels = create_bbox_json()
+
+	#shuffle labels (so also the images itself)
+	np.random.shuffle(labels)
+
+	if n_images + n_val_set > 12000:
+		print('WARNING: reducing train set size')
+		n_images -= n_val_set
 	
+	#load train set
 	image_array = []
 	label_array = []
-	
 	for label in tqdm(labels[:n_images]):
 		current_label, current_image_arr = load_single_img(label)
-		
 		label_array.append(current_label)
 		image_array.append(np.expand_dims(current_image_arr, 2))
-
 	image_array = np.array(image_array)
 	label_array = np.array(label_array)[:,0]
+
+	#load validation set which will be used to generate predictions at
+	#the end of training
+	val_image_array = []
+	val_label_array = []
+	for label in tqdm(labels[n_images:n_images+n_val_set]):
+		current_label, current_image_arr = load_single_img(label)
+		val_label_array.append(current_label)
+		val_image_array.append(np.expand_dims(current_image_arr, 2))
+	val_image_array = np.array(val_image_array)
+	val_label_array = np.array(val_label_array)[:,0]
+
+	early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
+					patience = 15, verbose = 1,
+					restore_best_weights = True, min_delta = 1e-2)
+	reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
+					factor = 0.5, patience = 3, verbose = 1,
+					min_delta = 1e-2, min_lr = 1e-6)
+
 	#data is shuffled in fit		
 	history = model.fit(image_array, label_array,
-				epochs = 10, validation_split = 0.1,
-				batch_size = 32, shuffle = True)
+				epochs = 30, validation_split = 0.1,
+				batch_size = 32, shuffle = True,
+				callbacks = [early_stopping, reduce_lr])
 
-	return history, image_array, label_array
+	return history, image_array, label_array, val_image_array, val_label_array
 
 def make_model(loadmodel = False):
 	if loadmodel:
@@ -231,7 +259,8 @@ bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 
 print('Commencing training')
-history, image_array, label_array = train_bb_model(6000, bb_model)
+n_val_set = 40
+history, image_array, label_array, val_image_array, val_label_array = train_bb_model(11000, bb_model, n_val_set = n_val_set)
 train_loss = history.history['loss']
 test_loss = history.history['val_loss']
 
@@ -243,10 +272,7 @@ print (" Saving model successful\n")
 plot_save_losses(train_loss, test_loss)
 
 ### now make some predictions
-n_pred = 20
-imgs = image_array[:n_pred]
-lbls = label_array[:n_pred]
-pred_lbls = bb_model.predict(imgs)
+pred_lbls = bb_model.predict(val_image_array)
 
-for i in range(n_pred):
-	plot_prediction(imgs[i], lbls[i], pred_lbls[i], i)
+for i in range(n_val_set):
+	plot_prediction(val_image_array[i], val_label_array[i], pred_lbls[i], i)
