@@ -15,7 +15,7 @@ import keras
 from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout
 from keras.models import Sequential
 
-from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera
+from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera, checkFolders
 
 from tqdm import tqdm
 
@@ -23,7 +23,7 @@ from tqdm import tqdm
 #  Change these to match your setup
 
 # dataset_dir = "..\\speed"	  # Root directory of dataset (contains /images, LICENSE.MD, *.json)
-dataset_dir = '/local/s1530194/speed'
+dataset_dir = '/data/s1530194/speed'
 default_margins = (.2, .2, .1) # (x, y, z) offset between satellite body and rectangular cage used as cropping target
 
 recreate_json	= False # Creates a new JSON file with bbox training label even if one already exists
@@ -32,6 +32,8 @@ recreate_json	= False # Creates a new JSON file with bbox training label even if
 train_dir = os.path.join(dataset_dir, "images/train")
 
 output_loc = 'bbox_jw'
+#check if the output folder is present and if not, make one
+checkFolders([output_loc])
 
 def create_bbox_json(margins=default_margins):
 	bbox_json_filepath_expected = os.path.join(dataset_dir, "train_bbox.json")
@@ -51,17 +53,17 @@ def create_bb_model():
 	
 	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(int(Camera.nv/16), int(Camera.nu/16), 1), padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
-	bb_model.add(Activation('softmax'))
+	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
 	bb_model.add(Conv2D(filters=32, kernel_size=5, padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
-	bb_model.add(Activation('softmax'))
+	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
 	bb_model.add(Conv2D(filters=16, kernel_size=5, padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
-	bb_model.add(Activation('softmax'))
+	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
 	
@@ -78,13 +80,13 @@ def create_bb_model():
 	
 	bb_model.add(Flatten())
 	
-	intermediate_sizes = [50, 20, 4]
+	intermediate_sizes = [50, 20]
 	
 	for layersize in intermediate_sizes:
-		bb_model.add(Dense(units=layersize, activation="softmax"))
+		bb_model.add(Dense(units=layersize, activation="relu"))
 		
-		if layersize != 4:
-			bb_model.add(Dropout(0.3))
+	#now make the output layer
+	bb_model.add(Dense(units=4, activation="sigmoid"))
 	
 	return bb_model
 
@@ -161,7 +163,7 @@ def plot_prediction(image, true_label, pred_label, i):
 
 	plt.imshow(image, cmap = 'gray')
 
-	img_width, img_height = image.shape
+	img_height, img_width = image.shape
 	#plot ground truth
 	plot_bounding_box(ax, true_label, img_width, img_height, 'Ground truth')
 
@@ -170,7 +172,7 @@ def plot_prediction(image, true_label, pred_label, i):
 
 
 	plt.legend(loc = 'upper right')
-	plt.axis('off')
+	# plt.axis('off')
 	plt.savefig(f'{output_loc}/Prediction_{i}.png', bbox_inches = 'tight', dpi = 200)
 	plt.close()
 
@@ -203,7 +205,7 @@ def train_bb_model(n_images, model):
 	label_array = np.array(label_array)[:,0]
 	#data is shuffled in fit		
 	history = model.fit(image_array, label_array,
-				epochs = 1, validation_split = 0.1,
+				epochs = 10, validation_split = 0.1,
 				batch_size = 32, shuffle = True)
 
 	return history, image_array, label_array
@@ -229,7 +231,7 @@ bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 
 print('Commencing training')
-history, image_array, label_array = train_bb_model(500, bb_model)
+history, image_array, label_array = train_bb_model(6000, bb_model)
 train_loss = history.history['loss']
 test_loss = history.history['val_loss']
 
@@ -241,10 +243,10 @@ print (" Saving model successful\n")
 plot_save_losses(train_loss, test_loss)
 
 ### now make some predictions
-n_pred = 10
+n_pred = 20
 imgs = image_array[:n_pred]
 lbls = label_array[:n_pred]
 pred_lbls = bb_model.predict(imgs)
 
-for i in range(10):
+for i in range(n_pred):
 	plot_prediction(imgs[i], lbls[i], pred_lbls[i], i)
