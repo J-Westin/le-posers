@@ -117,6 +117,7 @@ def create_model(pose):
 
 	model_final.compile(loss = pose.loss_function, 
 								optimizer = Adam(lr = pose.learning_rate,
-								decay = pose.learning_rate_decay))
+								decay = pose.learning_rate_decay),
+								metrics = [pose.metrics_function])
 
 	return model_final
