@@ -132,7 +132,7 @@ class POSE_NN(object):
 				else:
 					img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
 			
-			img = img.resize(self.dim)
+			img = img.resize(self.params["dim"])
 			x = image.img_to_array(img)
 			x = preprocess_input(x)
 			x = np.expand_dims(x, 0)
