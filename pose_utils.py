@@ -292,7 +292,8 @@ if has_tf:
 
 		def __init__(self, preprocessor, label_list, speed_root, 
 					batch_size=32, dim=(224, 224), n_channels=3, 
-					shuffle=True, randomRotations = False, seed = 1):
+					shuffle=True, randomRotations = False, seed = 1,
+					crop = False, cropper_model = None):
 
 			# loading dataset
 			self.image_root = os.path.join(speed_root, 'images', 'train')
@@ -309,6 +310,8 @@ if has_tf:
 			self.indexes = None
 			self.randomRotations = randomRotations
 			self.seed = seed
+			self.crop = crop
+			self.cropper_model = cropper_model
 			self.on_epoch_end()
 
 		def __len__(self):
@@ -393,27 +396,68 @@ if has_tf:
 
 			# Initialization
 			X = np.empty((self.batch_size, *self.dim, self.n_channels))
+			C = np.empty((self.batch_size, 4))
 			y = np.empty((self.batch_size, 7), dtype=float)
 
 			# Generate data
 			for i, ID in enumerate(list_IDs_temp):
 				img_path = os.path.join(self.image_root, ID)
 				# img = keras_image.load_img(img_path, target_size=self.dim)
-				img = keras_image.load_img(img_path)
+#				img = keras_image.load_img(img_path)
+				img = Image.open(img_path)
 				q, r = self.labels[ID]['q'], self.labels[ID]['r']
 
 				if self.randomRotations:
 					img, q, r = self.random_image_rotation(img, q, r)
+					
+				if self.crop:
+					img_height, img_width = np.array(img, dtype=float)[:,:].shape
+					
+					
+					# Preprocess image for cropper and obtain corners
+					current_image_pil = img.resize((160, 100), resample=Image.BICUBIC)
+					current_image_arr = np.array(current_image_pil, dtype=float)/256.
+					
+					coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
+
+#					plt.ioff()
+					if False:
+						plt.imsave(f'TestOutput_{ID}_O.png',img, dpi = 1000)
+
+					
+					left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
+					right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
+					lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
+					upper=int(np.maximum(coordinates[0,2],coordinates[0,3])*img_height)
+					len_dif=abs(left-right)-abs(lower-upper)
+					if len_dif>0:
+						img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
+					else:
+						img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
+					
+					if False:
+						plt.imsave(f'TestOutput_{ID}.png',img, dpi = 1000)
 
 				img = img.resize(self.dim)
 
 				# flatten and output
 				x = keras_image.img_to_array(img)
-				x = self.preprocessor(x)
+				if self.crop:
+					 x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
+				else:
+					 x = self.preprocessor(x)
+				
 				X[i,] = x
-				y[i] = np.concatenate([q, r])   
+				C[i,] = coordinates
+				y[i] = np.concatenate([q, r])  
+				
+				
+				if self.crop:
+					 Xf=[X,C]
+				else:
+					 Xf=X
 
-			return X, y
+			return Xf, y
 else:
 	class KerasDataGenerator:
 		def __init__(self, *args, **kwargs):

@@ -10,6 +10,9 @@ import tensorflow as tf
 import keras
 from sklearn import model_selection
 
+
+from PIL import Image
+
 import numpy as np
 import os
 import argparse
@@ -28,7 +31,7 @@ from pose_architecture_4 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version, load_model, loss = "mse", use_early_stop = False):
+	def __init__(self, batch_size, epochs, version, load_model, loss = "MSE", use_early_stop = False, crop = True):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
@@ -68,9 +71,29 @@ class POSE_NN(object):
 		checkFolders([self.output_loc])
 
 		self.gen_output = OutputResults(self)
+		
+		
+		# Load cropper if selected
+		if self.crop:
+			# load json and create model
+			loaded_model = keras.models.load_model("bbox_jw\model.h5")
+			# Compile model for evaluating only
+			loaded_model._make_predict_function()
+#			loaded_model.compile(optimizer='Adam',loss='mse')
+			self.cropper_model = loaded_model
+			
+		self.params = {'dim': (self.imgsize, self.imgsize),
+				  'batch_size': self.batch_size,
+				  'n_channels': 3,
+				  'shuffle': True,
+				  'randomRotations': False,
+				  'seed': 1,
+				  'crop': self.crop,
+				  'cropper_model': self.cropper_model}
 
 		self.dataloader()
 		if self.load_model < 0:
+			print(self.learning_rate)
 			self.model = create_model(self)
 		else:
 			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
@@ -85,14 +108,36 @@ class POSE_NN(object):
 
 		print('Running evaluation on {} set...'.format(dataset))
 
-		for img in image_list:
-			img_path = os.path.join(dataset_root, 'images', dataset, img['filename'])
-			pil_img = image.load_img(img_path, target_size=(self.imgsize, self.imgsize))
-			x = image.img_to_array(pil_img)
+		for img_id in image_list:
+			img_path = os.path.join(dataset_root, 'images', dataset, img_id['filename'])
+			img = Image.open(img_path)
+			if self.crop:
+				img_height, img_width = np.array(img, dtype=float)[:,:].shape
+				
+				
+				# Preprocess image for cropper and obtain corners
+				current_image_pil = img.resize((160, 100), resample=Image.BICUBIC)
+				current_image_arr = np.array(current_image_pil, dtype=float)/256.
+				
+				coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
+
+				
+				left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
+				right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
+				lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
+				upper=int(np.maximum(coordinates[0,2],coordinates[0,3])*img_height)
+				len_dif=abs(left-right)-abs(lower-upper)
+				if len_dif>0:
+					img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
+				else:
+					img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
+			
+			img = img.resize(self.dim)
+			x = image.img_to_array(img)
 			x = preprocess_input(x)
 			x = np.expand_dims(x, 0)
 			output = model.predict(x)
-			append_submission(img['filename'], output[0, :4], output[0, 4:])
+			append_submission(img_id['filename'], output[0, :4], output[0, 4:])
 
 	def generate_submission(self):
 		# Generating submission
@@ -230,12 +275,12 @@ class POSE_NN(object):
 		return tf.add(score_r,score_q)
 		
 
-def main(batch_size, epochs, version, load_model, loss_function, use_early_stop):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop)
+	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop)
 
 	#train the network
 	pose.train_model()
@@ -252,9 +297,10 @@ parser.add_argument('--version', help='version of the neural network.', default 
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
 parser.add_argument('--early_stopping', help='use early stopping.', default = False)
+parser.add_argument('--crop', help='use crop.', default = True)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.use_early_stop), bool(args.crop))
 
 
 '''
