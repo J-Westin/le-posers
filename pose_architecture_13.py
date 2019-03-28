@@ -12,12 +12,15 @@ from keras.optimizers import Adam
 
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
+import tensorflow as tf
+
 #things needed for adding layers
 # from keras.layers import Input, Conv2D, Conv2DTranspose, Flatten, Dense, Dropout, Activation, Add, MaxPooling2D
 
 import keras
 
 import sys
+
 
 def create_model(pose):
 	"""
@@ -91,9 +94,10 @@ def create_model(pose):
 	# x = keras.layers.Dropout(pose.dropout)(x)
 
 	#output layer
-	predictionsr = keras.layers.Dense(7, activation = 'linear')(x)
 	predictionsq = keras.layers.Dense(4, activation = 'tanh')(x)
-	predictions = keras.layers.concatenate([predictionsr, predictionsq])
+	predictionsq = keras.layers.Lambda(tf.nn.l2_normalize )(predictionsq)
+	predictionsr = keras.layers.Dense(3, activation = 'linear')(x)
+	predictions = keras.layers.concatenate([predictionsq, predictionsr ])
 
 	#combine model
 	model_final = keras.models.Model(inputs = pretrained_model.input, outputs=predictions)
@@ -109,6 +113,7 @@ def create_model(pose):
 
 	model_final.compile(loss = pose.loss_function, 
 							optimizer = Adam(lr = pose.learning_rate,
-							decay = pose.learning_rate_decay))
+							decay = pose.learning_rate_decay),
+							metrics = [pose.metrics_function])
 
 	return model_final
