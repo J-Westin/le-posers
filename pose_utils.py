@@ -390,14 +390,50 @@ if has_tf:
 
 			return img, q, r
 
+		def crop_image(self, img, bbox_imgshape = (240, 150)):
+			"""
+			Crops image in-place and returns coordinates of cropping 
+			bounding box which is an input for the neural network
+			"""
+			img_height, img_width = np.array(img, dtype=float)[:,:].shape
+			
+			# Preprocess image for cropper and obtain corners
+			current_image_pil = img.resize(bbox_imgshape, resample=Image.BICUBIC)
+			current_image_arr = np.array(current_image_pil, dtype=float)/256.
+			
+			coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
+
+#					plt.ioff()
+			if False:
+				plt.imsave(f'TestOutput_{ID}_O.png',img, dpi = 1000)
+
+			
+			left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
+			right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
+			lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
+			upper=int(np.maximum(coordinates[0,2],coordinates[0,3])*img_height)
+
+			len_dif=abs(left-right)-abs(lower-upper)
+
+			if len_dif>0:
+				img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
+			else:
+				img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
+
+			if False:
+				plt.imsave(f'TestOutput_{ID}.png',img, dpi = 1000)
+
+			return coordinates
+
 		def __data_generation(self, list_IDs_temp):
 
 			""" Generates data containing batch_size samples """
 
 			# Initialization
 			X = np.empty((self.batch_size, *self.dim, self.n_channels))
-			C = np.empty((self.batch_size, 4))
 			y = np.empty((self.batch_size, 7), dtype=float)
+			if self.crop:
+				C = np.empty((self.batch_size, 4))
 
 			# Generate data
 			for i, ID in enumerate(list_IDs_temp):
@@ -411,32 +447,7 @@ if has_tf:
 					img, q, r = self.random_image_rotation(img, q, r)
 					
 				if self.crop:
-					img_height, img_width = np.array(img, dtype=float)[:,:].shape
-					
-					
-					# Preprocess image for cropper and obtain corners
-					current_image_pil = img.resize((160, 100), resample=Image.BICUBIC)
-					current_image_arr = np.array(current_image_pil, dtype=float)/256.
-					
-					coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
-
-#					plt.ioff()
-					if False:
-						plt.imsave(f'TestOutput_{ID}_O.png',img, dpi = 1000)
-
-					
-					left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
-					right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
-					lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
-					upper=int(np.maximum(coordinates[0,2],coordinates[0,3])*img_height)
-					len_dif=abs(left-right)-abs(lower-upper)
-					if len_dif>0:
-						img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
-					else:
-						img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
-					
-					if False:
-						plt.imsave(f'TestOutput_{ID}.png',img, dpi = 1000)
+					coordinates = self.crop_image(img)
 
 				img = img.resize(self.dim)
 
@@ -448,12 +459,12 @@ if has_tf:
 					 x = self.preprocessor(x)
 				
 				X[i,] = x
-				C[i,] = coordinates
 				y[i] = np.concatenate([q, r])  
 				
 				
 				if self.crop:
-					 Xf=[X,C]
+					C[i,] = coordinates
+					Xf=[X,C]
 				else:
 					 Xf=X
 

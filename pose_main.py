@@ -21,7 +21,7 @@ import time
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_4 import create_model
+from pose_architecture_23 import create_model
 
 
 """ 
@@ -39,6 +39,7 @@ class POSE_NN(object):
 		self.load_model = load_model
 		self.loss = loss
 		self.use_early_stop = use_early_stop
+		self.crop = crop
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
@@ -60,7 +61,7 @@ class POSE_NN(object):
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
-		self.dataset_loc = '/local/s1530194/speed'
+		self.dataset_loc = '/data/s1530194/speed'
 
 
 		self.output_loc = f'./Version_{self.version}/'
@@ -76,7 +77,7 @@ class POSE_NN(object):
 		# Load cropper if selected
 		if self.crop:
 			# load json and create model
-			loaded_model = keras.models.load_model("bbox_jw\model.h5")
+			loaded_model = keras.models.load_model('bbox_model.h5')
 			# Compile model for evaluating only
 			loaded_model._make_predict_function()
 #			loaded_model.compile(optimizer='Adam',loss='mse')
@@ -173,14 +174,14 @@ class POSE_NN(object):
 						patience = 15, verbose = 1,
 						restore_best_weights = True, min_delta = 1e-2)
 		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
-						factor = 0.2, patience = 3, verbose = 1,
+						factor = 0.5, patience = 3, verbose = 1,
 						min_delta = 1e-2, min_lr = 1e-6)
-		save_model = keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
+		# save_model = keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
 		
 		if self.use_early_stop:
-			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),early_stopping,reduce_lr,save_model]
+			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),early_stopping,reduce_lr]
 		else:
-			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),save_model]
+			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps')]
 
 		# Training the model (transfer learning)
 		history = self.model.fit_generator(
@@ -291,7 +292,7 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
-parser.add_argument('--epochs', help='Number of epochs for training.', default = 20)
+parser.add_argument('--epochs', help='Number of epochs for training.', default = 30)
 parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
@@ -300,16 +301,5 @@ parser.add_argument('--early_stopping', help='use early stopping.', default = Fa
 parser.add_argument('--crop', help='use crop.', default = True)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.use_early_stop), bool(args.crop))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop))
 
-
-'''
-https://machinelearningmastery.com/save-load-keras-deep-learning-models/
-
-Remove last layer of model with 
-model.layers.pop()
-
-Freeze layers
-for layer in model.layers:
-	layer.trainable = False
-'''

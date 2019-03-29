@@ -12,8 +12,9 @@ from PIL import Image
 
 import keras
 
-from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout
+from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D
 from keras.models import Sequential
+from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
 from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera, checkFolders
 
@@ -22,16 +23,16 @@ from tqdm import tqdm
 ## ~~ Settings ~~ ##
 #  Change these to match your setup
 
-dataset_dir = "..\\speed"	  # Root directory of dataset (contains /images, LICENSE.MD, *.json)
-output_loc = 'bbox_jw'
-#dataset_dir = '/data/s1530194/speed'
+# dataset_dir = "..\\speed"	  # Root directory of dataset (contains /images, LICENSE.MD, *.json)
+dataset_dir = '/data/s1530194/speed'
+
 default_margins = (.2, .2, .1) # (x, y, z) offset between satellite body and rectangular cage used as cropping target
 
 recreate_json = False # Creates a new JSON file with bbox training label even if one already exists
 
 train_dir = os.path.join(dataset_dir, "images/train")
 
-output_loc = 'bbox_jw_2'
+output_loc = 'bbox_jw_4'
 #check if the output folder is present and if not, make one
 checkFolders([output_loc])
 
@@ -53,23 +54,32 @@ def create_bbox_json(margins=default_margins):
 def create_bb_model():
 	bb_model = Sequential()
 	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, input_shape=(imgsize[1], imgsize[0], 1), padding='valid', use_bias=True))
-
+	bb_model.add(Conv2D(filters=32, kernel_size=7, 
+					input_shape=(imgsize[1], imgsize[0], 1), 
+					padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, padding='valid', use_bias=True))
+	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+				padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, padding='valid', use_bias=True))
+	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+				padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
+	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+				padding='valid', use_bias=True))
+	bb_model.add(BatchNormalization())
+	bb_model.add(Activation('relu'))
+	bb_model.add(MaxPooling2D(pool_size=(2,2)))
 	
+	'''
 	bb_model.add(Flatten())
 	
 	intermediate_sizes = [50, 20]
@@ -77,9 +87,16 @@ def create_bb_model():
 	for layersize in intermediate_sizes:
 		bb_model.add(Dense(units=layersize, activation="relu"))
 		bb_model.add(Dropout(0.3))
-		
+	'''
+
+	bb_model.add(GlobalAveragePooling2D())
+	
 	#now make the output layer
 	bb_model.add(Dense(units=4, activation="sigmoid"))
+
+	#also make a flow chart of the model
+	plot_model(bb_model, to_file = f'{output_loc}/model_arch.png', show_shapes = True, show_layer_names = True)
+
 	
 	return bb_model
 
@@ -217,14 +234,14 @@ def train_bb_model(n_images, model, n_val_set = 20):
 					patience = 15, verbose = 1,
 					restore_best_weights = True, min_delta = 1e-2)
 	reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
-					factor = 0.5, patience = 3, verbose = 1,
+					factor = 0.7, patience = 6, verbose = 1,
 					min_delta = 1e-2, min_lr = 1e-6)
 
 	#data is shuffled in fit		
 	history = model.fit(image_array, label_array,
 				epochs = 30, validation_split = 0.1,
 				batch_size = 32, shuffle = True,
-				callbacks = [early_stopping, reduce_lr])
+				callbacks = [reduce_lr])
 
 	return history, image_array, label_array, val_image_array, val_label_array
 
@@ -249,7 +266,7 @@ bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 
 print('Commencing training')
-n_val_set = 40
+n_val_set = 20
 history, image_array, label_array, val_image_array, val_label_array = train_bb_model(11000, bb_model, n_val_set = n_val_set)
 train_loss = history.history['loss']
 test_loss = history.history['val_loss']
