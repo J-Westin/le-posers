@@ -24,7 +24,7 @@ from pose_utils import KerasDataGenerator, checkFolders, OutputResults
 from pose_architecture_23 import create_model
 
 
-""" 
+"""
 	Example script demonstrating training on the SPEED dataset using Keras.
 	Usage example: python keras_example.py --epochs [num epochs] --batch [batch size]
 """
@@ -72,8 +72,8 @@ class POSE_NN(object):
 		checkFolders([self.output_loc])
 
 		self.gen_output = OutputResults(self)
-		
-		
+
+
 		# Load cropper if selected
 		if self.crop:
 			# load json and create model
@@ -82,7 +82,7 @@ class POSE_NN(object):
 			loaded_model._make_predict_function()
 #			loaded_model.compile(optimizer='Adam',loss='mse')
 			self.cropper_model = loaded_model
-			
+
 		self.params = {'dim': (self.imgsize, self.imgsize),
 				  'batch_size': self.batch_size,
 				  'n_channels': 3,
@@ -97,6 +97,7 @@ class POSE_NN(object):
 			print(self.learning_rate)
 			self.model = create_model(self)
 		else:
+			print(self.load_model)
 			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
 
 
@@ -112,17 +113,18 @@ class POSE_NN(object):
 		for img_id in image_list:
 			img_path = os.path.join(dataset_root, 'images', dataset, img_id['filename'])
 			img = Image.open(img_path)
+
 			if self.crop:
-				img_height, img_width = np.array(img, dtype=float)[:,:].shape
-				
-				
+				img_height, img_width = np.array(img, dtype=float)[:,:].shape[:2]
+
+
 				# Preprocess image for cropper and obtain corners
-				current_image_pil = img.resize((160, 100), resample=Image.BICUBIC)
+				current_image_pil = img.resize((240, 150), resample=Image.BICUBIC)
 				current_image_arr = np.array(current_image_pil, dtype=float)/256.
-				
+
 				coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
 
-				
+
 				left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
 				right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
 				lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
@@ -132,11 +134,19 @@ class POSE_NN(object):
 					img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
 				else:
 					img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
-			
+
 			img = img.resize(self.params["dim"])
 			x = image.img_to_array(img)
+			#repeat single channel to create three channel image
+			if x.shape[2] < 2:
+				#only runs on the simulated test set
+				x = np.concatenate((x, x, x), axis = 2)
 			x = preprocess_input(x)
 			x = np.expand_dims(x, 0)
+
+			if self.crop:
+				x = [x, coordinates]
+
 			output = model.predict(x)
 			append_submission(img_id['filename'], output[0, :4], output[0, 4:])
 
@@ -155,6 +165,8 @@ class POSE_NN(object):
 		with open(os.path.join(self.dataset_loc, 'train' + '.json'), 'r') as f:
 			label_list = json.load(f)
 
+		# label_list = label_list[:n_imgs]
+
 		#shuffle and split
 		train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = self.test_size, shuffle = True)
 
@@ -168,16 +180,16 @@ class POSE_NN(object):
 		"""
 		#time training
 		starttime = time.time()
-		
+
 		# Choose the early stopping and learning rate configuration
 		early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
 						patience = 15, verbose = 1,
 						restore_best_weights = True, min_delta = 1e-2)
-		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
+		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss',
 						factor = 0.5, patience = 3, verbose = 1,
 						min_delta = 1e-2, min_lr = 1e-6)
 		# save_model = keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
-		
+
 		if self.use_early_stop:
 			callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'),early_stopping,reduce_lr]
 		else:
@@ -213,13 +225,13 @@ class POSE_NN(object):
 		"""
 		Write a given Keras model summary to file
 		"""
-		
+
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
-			print(s, file = f) 
-			
+			print(s, file = f)
+
 	def loss_function(self, x, y):
 		"""
-		Loss function to be used during training. 
+		Loss function to be used during training.
 		If the option "MSE" is used, it uses mean squared error,
 		if the option "MAPE" is usedm it uses the mean average percent error,
 		if "POSE" is used, it uses the cost from the competition,
@@ -257,7 +269,7 @@ class POSE_NN(object):
 			return tf.add(score_r,score_q)
 		else:
 			raise ValueError('The loss "'+self.loss+'" is not a valid loss.')
-			
+
 	def metrics_function(self, x, y):
 		"""
 		Final score function used in the competition.
@@ -274,7 +286,7 @@ class POSE_NN(object):
 		gt_q=y[:,3:7]
 		score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 		return tf.add(score_r,score_q)
-		
+
 
 def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop):
 
@@ -288,7 +300,7 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 	#evaluate the results
 	pose.generate_submission()
-	
+
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
@@ -302,4 +314,3 @@ parser.add_argument('--crop', help='use crop.', default = True)
 args = parser.parse_args()
 
 main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop))
-

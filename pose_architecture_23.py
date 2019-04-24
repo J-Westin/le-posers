@@ -25,11 +25,11 @@ import sys
 def create_model(pose):
 	"""
 	An architecture based on VGG19. Best results are obtained when using
-	all the layers except the output layer of VGG19. 
+	all the layers except the output layer of VGG19.
 	This specific version is linear, so NO SKIP CONNECTION.
 	"""
 	#number of layers to use from the pretrained network
-	# nl_from_pre = 8
+	nl_from_pre = 14
 
 
 	# Loading and freezing pre-trained model
@@ -42,8 +42,7 @@ def create_model(pose):
 	# print('\nSaving model plot...\n')
 	# plot_model(pretrained_model, to_file='VGG19_arch.png', show_shapes=True, show_layer_names=True)
 	# sys.exit('Stopped')
-	
-	'''
+
 	#find the number of layers of the pretrained network
 	nl_pre = len(pretrained_model.layers)
 
@@ -53,7 +52,6 @@ def create_model(pose):
 	for i in reversed(range(nl_from_pre+1, nl_pre)):
 		#pop one layer at a time
 		test_model.layers.pop()
-	'''
 
 	# Adding new trainable hidden and output layers to the model
 	cnn = pretrained_model.layers[-1].output
@@ -73,7 +71,15 @@ def create_model(pose):
 	x = keras.layers.Activation('relu')(x)
 	x = keras.layers.MaxPooling2D(pool_size=(2,2))(x)
 	'''
-	cnn = keras.layers.Conv2D(filters=64, kernel_size=5, padding='valid',
+
+	# cnn = keras.layers.MaxPooling2D(pool_size=(2,2))(cnn)
+
+	cnn = keras.layers.Conv2D(filters=128, kernel_size=5, padding='valid',
+					 kernel_initializer='glorot_uniform', use_bias=True)(cnn)
+	cnn = keras.layers.BatchNormalization()(cnn)
+	cnn = keras.layers.Activation('relu')(cnn)
+
+	cnn = keras.layers.Conv2D(filters=64, kernel_size=3, padding='valid',
 					 kernel_initializer='glorot_uniform', use_bias=True)(cnn)
 	cnn = keras.layers.BatchNormalization()(cnn)
 	cnn = keras.layers.Activation('relu')(cnn)
@@ -86,14 +92,14 @@ def create_model(pose):
 
 	#pool across each kernel layer
 	cnn = keras.layers.GlobalAveragePooling2D()(cnn)
-	
+
 	model_cnn=keras.models.Model(inputs = pretrained_model.input, outputs=cnn)
-	
+
 	inputs = keras.layers.Input(shape=(4,))
 	dnn = inputs
-	dnn = keras.layers.Dense(64, activation = 'relu')(dnn)
 	dnn = keras.layers.Dense(32, activation = 'relu')(dnn)
-	
+	dnn = keras.layers.Dense(32, activation = 'relu')(dnn)
+
 	model_dnn=keras.models.Model(inputs = inputs, outputs=dnn)
 
 	x = keras.layers.concatenate([model_cnn.output, model_dnn.output])
@@ -122,7 +128,7 @@ def create_model(pose):
 	#also make a flow chart of the model
 	plot_model(model_final, to_file = f'{pose.output_loc}model_arch_v{pose.version}.png', show_shapes = True, show_layer_names = True)
 
-	model_final.compile(loss = pose.loss_function, 
+	model_final.compile(loss = pose.loss_function,
 							optimizer = Adam(lr = pose.learning_rate,
 							decay = pose.learning_rate_decay),
 							metrics = [pose.metrics_function])

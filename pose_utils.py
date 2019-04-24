@@ -123,31 +123,31 @@ def project(q, r):
 def project_sc2im(r_sc, q, r):
 
 	""" Projects r_sc = (x_sc, y_sc, z_sc) from the spacecraft frame to the image frame """
-	
+
 	x_sc, y_sc, z_sc = r_sc
 	r_sc_hmg = np.array([[x_sc],[y_sc],[z_sc],[1.]])
-	
+
 	proj_pose = np.hstack((np.transpose(quat2dcm(q)), np.expand_dims(r, 1)))
-	
+
 	r_cam = np.dot(proj_pose, r_sc_hmg)
 	r_cam_hmg = r_cam / r_cam[2]
-	
+
 	p_im = np.dot(Camera.K, r_cam_hmg)
 	x_im, y_im, z_im = list(p_im)
-	
+
 	return x_im, y_im
 
 def corner_points_im(q, r, margins):
 	X, Y = [], []
 	mrg_x, mrg_y, mrg_z = margins
-	
+
 	for x in [-0.4-mrg_x, 0.4+mrg_x]:
 		for y in [-0.4-mrg_y, 0.4+mrg_y]:
 			for z in [0.-mrg_z, 0.31+mrg_z]:
 				x_im, y_im = project_sc2im([x, y, z], q, r)
 				X.append(x_im)
 				Y.append(y_im)
-	
+
 	return X, Y
 
 class SatellitePoseEstimationDataset:
@@ -193,41 +193,41 @@ class SatellitePoseEstimationDataset:
 			ax.arrow(xa[0], ya[0], xa[3] - xa[0], ya[3] - ya[0], head_width=30, color='b')
 
 		return
-	
+
 	def target_bbox_coordinates(self, i, margins):
-		
+
 		""" return target bounding box pixel coordinates as four floats: x_min, x_max, y_min, y_max. """
-		
+
 		q, r = self.get_pose(i)
 		x_crn, y_crn = corner_points_im(q, r, margins)
-		
+
 		x_min, x_max = min(x_crn), max(x_crn)
 		y_min, y_max = min(y_crn), max(y_crn)
 		x_min, x_max, y_min, y_max = x_min[0], x_max[0], y_min[0], y_max[0]
-		
+
 		x_min = max(x_min, 0)
 		x_max = min(x_max, Camera.nu)
 		y_min = max(y_min, 0)
 		y_max = min(y_max, Camera.nv)
-		
+
 		return [x_min/Camera.nu, x_max/Camera.nu, y_min/Camera.nv, y_max/Camera.nv]
-	
+
 	def generate_bbox_json(self, margins, output_filename="train_bbox.json"):
 		bbox_data_list = []
-		
+
 		for k in range(len(self.labels)):
 			current_filename = self.partitions["train"][k]
 			current_bbox_label = self.target_bbox_coordinates(k, margins)
 			current_json_entry = {"filename": current_filename, "bbox":current_bbox_label}
-			
+
 			bbox_data_list.append(current_json_entry)
-		
+
 		filepath = os.path.join(self.root_dir, output_filename)
-		
+
 		output_file = open(filepath, "w")
 		json.dump(bbox_data_list, output_file)
 		output_file.close()
-		
+
 		return
 
 
@@ -290,8 +290,8 @@ if has_tf:
 
 		""" DataGenerator for Keras to be used with fit_generator (https://keras.io/models/sequential/#fit_generator)"""
 
-		def __init__(self, preprocessor, label_list, speed_root, 
-					batch_size=32, dim=(224, 224), n_channels=3, 
+		def __init__(self, preprocessor, label_list, speed_root,
+					batch_size=32, dim=(224, 224), n_channels=3,
 					shuffle=True, randomRotations = False, seed = 1,
 					crop = False, cropper_model = None):
 
@@ -346,16 +346,16 @@ if has_tf:
 		def random_image_rotation(self, img, q, r):
 			# generate a random angle
 			angle = np.random.uniform(low = 0.0, high = 360.0)
-			
+
 			# rotate image
 			img = img.rotate(-angle)
-			
+
 			# compute new location
 			angle = angle/180*np.pi
 			r = [np.cos(angle)*r[0] - np.sin(angle)*r[1],
 				 np.sin(angle)*r[0] + np.cos(angle)*r[1],
 				 r[2]]
-			
+
 			# compute new orientation
 			rotationAxis = [0, 0, 1]
 			qRot = [np.cos(angle/2),
@@ -368,7 +368,7 @@ if has_tf:
 				  x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,
 				 -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
 				  x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0]
-					  
+
 			# saves a bunch of images for debugging
 			if False:
 				prec = 3
@@ -386,28 +386,30 @@ if has_tf:
 				ax.arrow(xa[0], ya[0], xa[3] - xa[0], ya[3] - ya[0], head_width=6, color='b')
 				ax.axis('off')
 				plt.savefig(f'TestOutput_{ID}.png', dpi = 1000, bbox_inches = 'tight')
-				plt.close() 
+				plt.close()
 
 			return img, q, r
 
 		def crop_image(self, img, bbox_imgshape = (240, 150)):
 			"""
-			Crops image in-place and returns coordinates of cropping 
+			Crops image in-place and returns coordinates of cropping
 			bounding box which is an input for the neural network
 			"""
 			img_height, img_width = np.array(img, dtype=float)[:,:].shape
-			
+
 			# Preprocess image for cropper and obtain corners
 			current_image_pil = img.resize(bbox_imgshape, resample=Image.BICUBIC)
 			current_image_arr = np.array(current_image_pil, dtype=float)/256.
-			
+
 			coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
 
 #					plt.ioff()
-			if False:
-				plt.imsave(f'TestOutput_{ID}_O.png',img, dpi = 1000)
 
-			
+			# ID = np.random.randint(0, 100)
+			if False:
+				plt.imsave(f'croppertest/TestOutput_{ID}_O.png', img, cmap = 'grey', dpi = 300)
+
+
 			left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
 			right=int(np.maximum(coordinates[0,0],coordinates[0,1])*img_width)
 			lower=int(np.minimum(coordinates[0,2],coordinates[0,3])*img_height)
@@ -421,7 +423,7 @@ if has_tf:
 				img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
 
 			if False:
-				plt.imsave(f'TestOutput_{ID}.png',img, dpi = 1000)
+				plt.imsave(f'croppertest/TestOutput_{ID}.png', img, cmap = 'grey', dpi = 300)
 
 			return coordinates
 
@@ -445,7 +447,7 @@ if has_tf:
 
 				if self.randomRotations:
 					img, q, r = self.random_image_rotation(img, q, r)
-					
+
 				if self.crop:
 					coordinates = self.crop_image(img)
 
@@ -457,11 +459,11 @@ if has_tf:
 					 x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
 				else:
 					 x = self.preprocessor(x)
-				
+
 				X[i,] = x
-				y[i] = np.concatenate([q, r])  
-				
-				
+				y[i] = np.concatenate([q, r])
+
+
 				if self.crop:
 					C[i,] = coordinates
 					Xf=[X,C]
@@ -535,5 +537,5 @@ class OutputResults(object):
 				return
 			print('Loading model from {0}'.format(filename))
 			model = keras.models.load_model(filename)
-			
+
 			return model
