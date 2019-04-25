@@ -57,7 +57,8 @@ class POSE_NN(object):
 				  'n_channels': 3,
 				  'shuffle': True,
 				  'randomRotations': True,
-				  'seed': 1}
+				  'seed': 1,
+				  'crop': self.crop}
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
@@ -82,16 +83,10 @@ class POSE_NN(object):
 			loaded_model._make_predict_function()
 #			loaded_model.compile(optimizer='Adam',loss='mse')
 			self.cropper_model = loaded_model
-
-		self.params = {'dim': (self.imgsize, self.imgsize),
-				  'batch_size': self.batch_size,
-				  'n_channels': 3,
-				  'shuffle': True,
-				  'randomRotations': False,
-				  'seed': 1,
-				  'crop': self.crop,
-				  'cropper_model': self.cropper_model}
-
+			
+			self.params.update( {'cropper_model' : self.cropper_model} )
+			
+		
 		self.dataloader()
 		if self.load_model < 0:
 			print(self.learning_rate)
