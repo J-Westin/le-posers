@@ -455,10 +455,8 @@ if has_tf:
 
 				# flatten and output
 				x = keras_image.img_to_array(img)
-				if self.crop:
-					 x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
-				else:
-					 x = self.preprocessor(x)
+				
+				x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
 
 				X[i,] = x
 				y[i] = np.concatenate([q, r])
