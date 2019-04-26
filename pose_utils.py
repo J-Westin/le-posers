@@ -405,9 +405,9 @@ if has_tf:
 
 #					plt.ioff()
 
-			# ID = np.random.randint(0, 100)
+			# ID = np.random.randint(0, 100000000)
 			if False:
-				plt.imsave(f'croppertest/TestOutput_{ID}_O.png', img, cmap = 'grey', dpi = 300)
+				plt.imsave(f'croppertest/TestOutput_{ID}_O.png', img, cmap = 'gray', dpi = 300)
 
 
 			left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
@@ -417,13 +417,13 @@ if has_tf:
 
 			len_dif=abs(left-right)-abs(lower-upper)
 
-			if len_dif>0:
+			if len_dif > 0:
 				img = img.crop((int(left),int(lower-len_dif/2),int(right),int(upper+len_dif/2)))
 			else:
 				img = img.crop((int(left+len_dif/2),int(lower),int(right-len_dif/2),int(upper)))
 
 			if False:
-				plt.imsave(f'croppertest/TestOutput_{ID}.png', img, cmap = 'grey', dpi = 300)
+				plt.imsave(f'croppertest/TestOutput_{ID}.png', img, cmap = 'gray', dpi = 300)
 
 			return coordinates
 

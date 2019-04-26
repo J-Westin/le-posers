@@ -49,15 +49,6 @@ class POSE_NN(object):
 		self.dropout = 0.3
 
 		self.learning_rate = 0.001
-		self.learning_rate_decay = 0
-
-		#parameters for the datagenerator
-		self.params = {'dim': (self.imgsize, self.imgsize),
-				  'batch_size': self.batch_size,
-				  'n_channels': 3,
-				  'shuffle': True,
-				  'randomRotations': True,
-				  'seed': 1}
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
@@ -87,7 +78,7 @@ class POSE_NN(object):
 				  'batch_size': self.batch_size,
 				  'n_channels': 3,
 				  'shuffle': True,
-				  'randomRotations': False,
+				  'randomRotations': True,
 				  'seed': 1,
 				  'crop': self.crop,
 				  'cropper_model': self.cropper_model}
@@ -122,7 +113,7 @@ class POSE_NN(object):
 				current_image_pil = img.resize((240, 150), resample=Image.BICUBIC)
 				current_image_arr = np.array(current_image_pil, dtype=float)/256.
 
-				coordinates = self.cropper_model.predict(np.expand_dims(np.expand_dims(current_image_arr[:,:],axis=2),axis=0))
+				coordinates = self.cropper_model.predict(np.expand_dims(current_image_arr[:,:],axis=0))
 
 
 				left=int(np.minimum(coordinates[0,0],coordinates[0,1])*img_width)
@@ -305,7 +296,7 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 30)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
 parser.add_argument('--version', help='version of the neural network.', default = 0)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
@@ -313,4 +304,4 @@ parser.add_argument('--early_stopping', help='use early stopping.', default = Fa
 parser.add_argument('--crop', help='use crop.', default = True)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), args.early_stopping == 'True', args.crop == 'True')
