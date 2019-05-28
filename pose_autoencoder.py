@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 
@@ -228,6 +229,8 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	clusterer.fit(encoder_output)
 	cluster_labels = clusterer.labels_
 
+	np.save(f'{encoder_clustering_output_loc}/{algorithm}_cluster_labels.npy', cluster_labels)
+
 	unique_labels = np.unique(cluster_labels)
 
 
@@ -261,6 +264,13 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	#### Now we will plot images of examples of every cluster found
 	assert len(val_images) == encoder_output.shape[0], 'Number of validation images not equal to encoder output. Did you actually load the validation images?'
 
+	#we first want to shuffle all three arrays so we are not introducing
+	#systematic bias
+	shuffle_loc = np.random.permutation(len(val_images))
+	val_images = val_images[shuffle_loc]
+	encoder_output = encoder_output[shuffle_loc]
+	cluster_labels = cluster_labels[shuffle_loc]
+
 	#number of images per cluster label
 	n_per_cluster = 12
 
@@ -290,6 +300,7 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 			plt.xlim((0, imgwidth))
 			plt.ylim((imgheight, 0))
 
+			#also make the title have the colour matching the scatter plot
 			font = {'family': 'serif',
 		        'color': scalarMap.to_rgba(j),
 		        'weight': 'normal'
@@ -300,14 +311,15 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 			plt.close()
 
 def plot_autoencoder_output(val_image_array, autoencoder_output):
-	print(autoencoder_output.shape)
 	for i in tqdm(range(autoencoder_output.shape[0])):
 		fig = plt.figure(figsize = (12, 12))
 
+		#the input image
 		ax = fig.add_subplot(211)
 		plt.imshow(val_image_array[i,:,:,0], cmap = 'gray')
 		plt.title('Input image')
 
+		#the output of the autoencoder
 		ax = fig.add_subplot(212)
 		plt.imshow(autoencoder_output[i,:,:,0], cmap = 'gray')
 		plt.title('Autoencoder output')
@@ -337,13 +349,14 @@ def load_images(labs):
 		image_array.append(np.expand_dims(current_image_arr, 2))
 	return np.array(image_array)
 
-def load_data(n_images, n_val_set, load_train_images = True):
+def load_data(n_images, n_val_set, load_train_images = True, random_shuffle = True):
 	"""
 	Loads the desired data
 	"""
 	labels = create_json()
 	#shuffle labels (so also the images itself)
-	np.random.shuffle(labels)
+	if random_shuffle:
+		np.random.shuffle(labels)
 
 	if n_images + n_val_set > 12000:
 		print('WARNING: reducing train set size')
@@ -357,12 +370,12 @@ def load_data(n_images, n_val_set, load_train_images = True):
 		#load train set
 		train_images = load_images(labels[:n_images])
 
-		return train_images, val_images
+		return train_images, val_images, labels
 	else:
-		return val_images
+		return val_images, labels
 
 def train_model(n_images, n_val_set, autoencoder):
-	train_images, val_images = load_data(n_images, n_val_set, load_train_images = True)
+	train_images, val_images, labels = load_data(n_images, n_val_set, load_train_images = True)
 
 	early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
 					patience = 12, verbose = 1,
@@ -377,9 +390,9 @@ def train_model(n_images, n_val_set, autoencoder):
 				batch_size = 32, shuffle = True,
 				callbacks = [early_stopping, reduce_lr])
 
-	return history, train_images, val_images
+	return history, train_images, val_images, labels
 
-def train_or_load_model(n_images, n_val_set, loadmodel = False, load_val_imgs = True):
+def train_or_load_model(n_iTritaniummages, n_val_set, loadmodel = False, load_val_imgs = True):
 	if loadmodel:
 		print ("Loading architecture from file")
 		encoder = saveLoadModel(f'{output_loc}/encoder.h5', save = False, load = True)
@@ -390,7 +403,7 @@ def train_or_load_model(n_images, n_val_set, loadmodel = False, load_val_imgs = 
 		autoencoder.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 		if load_val_imgs:
-			val_images = load_data(n_images, n_val_set, load_train_images = False)
+			val_images, labels = load_data(n_images, n_val_set, load_train_images = False, random_shuffle = False)
 		else:
 			val_images = np.array([])
 	else:
@@ -398,7 +411,7 @@ def train_or_load_model(n_images, n_val_set, loadmodel = False, load_val_imgs = 
 		encoder, autoencoder = create_model()
 		print (" Created new model")
 
-		history, train_images, val_images = train_model(n_images - n_val_set, n_val_set, autoencoder)
+		history, train_images, val_images, labels = train_model(n_images - n_val_set, n_val_set, autoencoder)
 		train_loss = history.history['loss']
 		test_loss = history.history['val_loss']
 
@@ -410,22 +423,25 @@ def train_or_load_model(n_images, n_val_set, loadmodel = False, load_val_imgs = 
 		#plot loss
 		plot_save_losses(train_loss, test_loss)
 
-	return encoder, autoencoder, val_images
+	return encoder, autoencoder, val_images, labels
 
 
-def run_predictions(encoder, autoencoder, val_images, load_val_imgs = True):
+def run_predictions(encoder, autoencoder, val_images, labels, load_val_imgs = True):
 	if load_val_imgs:
 		encoder_output = encoder.predict(val_images)
 
 		#save output to file if we want to analyse it later
-		np.save(f'{output_loc}/encoder_val_output.npy', encoder_output)
+		np.save(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy', encoder_output)
+		np.save(f'{encoder_clustering_output_loc}/image_labels_{imageset}.npy', np.array(labels))
 	else:
-		encoder_output = np.load(f'{output_loc}/encoder_val_output.npy')
+		encoder_output = np.load(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy')
+		labels = np.load(f'{encoder_clustering_output_loc}/image_labels_{imageset}.npy')
 
 	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = False)
 
 	#also plot autoencoder output to see the compression it applies
-	# plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
+	np.random.shuffle(val_images)
+	plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
 
 
 #### Tweakable parameters
@@ -434,6 +450,8 @@ version = 2
 n_images = 0
 #number of images for validation
 n_val_set = 12000
+
+imageset = 'test'
 
 loadmodel = True
 #True: load all validation images. False: load only the encoder output
@@ -450,7 +468,7 @@ checkFolders([autoencoder_imgs_output_loc, encoder_clustering_output_loc])
 
 
 #### Train the network
-encoder, autoencoder, val_images = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel, load_val_imgs = load_val_imgs)
+encoder, autoencoder, val_images, labels = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel, load_val_imgs = load_val_imgs)
 
 #### now make some predictions
-run_predictions(encoder, autoencoder, val_images, load_val_imgs = load_val_imgs)
+run_predictions(encoder, autoencoder, val_images, labels, load_val_imgs = load_val_imgs)
