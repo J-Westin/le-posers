@@ -1,12 +1,15 @@
 import os
 import json
 import random
+import time
 
 import numpy as np
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
 
 from PIL import Image
 
@@ -16,9 +19,14 @@ from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, F
 from keras.models import Sequential, Model
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
+#https://github.com/scikit-learn-contrib/hdbscan
+import hdbscan
+import sklearn.cluster as skcluster
+import sklearn.manifold as skmanifold
+from tqdm import tqdm
+
 from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera, checkFolders
 
-from tqdm import tqdm
 
 ## ~~ Settings ~~ ##
 #  Change these to match your setup
@@ -129,8 +137,9 @@ def saveLoadModel(filename, model=None, save=False, load=False):
 		if not os.path.exists(filename):
 			print('Cannot find specified model, check if path or filename is correct')
 			return
-		print('Loading model from {0}'.format(filename))
+		print('Loading model from {0}...'.format(filename))
 		model = keras.models.load_model(filename)
+		print('Finished loading model')
 
 		return model
 
@@ -160,11 +169,83 @@ def plot_save_losses(train_loss, test_loss):
 	plt.savefig(f'{output_loc}/Autoencoder_Losses.png', dpi = 300, bbox_inches = 'tight')
 	plt.close()
 
-def plot_encoder_output(encoder_output):
-	print(encoder_output.shape)
-	plt.scatter(encoder_output[:,0], encoder_output[:,1], s = 2, edgecolor = None, facecolor = 'black', alpha = 0.3)
+def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True):
+	"""
+	Applies a clustering algorithm from sklearn to the output of an encoder
+	to see if the observed clustering is representative of real grouping
+	"""
 
-	plt.savefig(f'{output_loc}/Encoder_val_output.png', bbox_inches = 'tight', dpi = 200)
+	def scatterplot_2dim(X, cluster_labels = None):
+		"""
+		Make a 2D scatter plot of some data using labels where possible
+		"""
+
+		#process the labels for nice colour maps
+		if cluster_labels is not None:
+			unique_labels = np.unique(cluster_labels)
+
+			#obtain a colour map for the different cluster labels
+			jet = plt.get_cmap('jet')
+			cNorm  = colors.Normalize(vmin = 0, vmax = len(unique_labels))
+			scalarMap = cmx.ScalarMappable(norm = cNorm, cmap = jet)
+
+		#plot the points
+		if cluster_labels is not None:
+			#with label markers
+			for i, cluster_lab in enumerate(unique_labels):
+				plt.scatter(X[cluster_labels == cluster_lab,0],
+							X[cluster_labels == cluster_lab,1],
+							s = 2, edgecolor = None, facecolor = scalarMap.to_rgba(i),
+							alpha = 0.6, label = cluster_lab)
+
+			plt.legend(loc = 'best')
+		else:
+			#without label markers (as there are no labels available)
+			plt.scatter(X[:,0],
+						X[:,1],
+						s = 2, edgecolor = None, facecolor = 'black',
+						alpha = 0.6)
+
+
+	if algorithm == 'HDBSCAN':
+		#start clustering with HDBSCAN
+		clusterer = hdbscan.HDBSCAN()
+	elif algorithm == 'hierarch':
+		#agglomerative (hierarchial) clustering
+		clusterer = skcluster.AgglomerativeClustering(n_clusters = 4)
+	elif algorithm == 'k-means':
+		#agglomerative (hierarchial) clustering
+		clusterer = skcluster.KMeans(n_clusters = 4)
+
+	#fit the algorithm and extract labels
+	clusterer.fit(encoder_output)
+	cluster_labels = clusterer.labels_
+
+
+
+	if use_tSNE:
+		starttime = time.time()
+		print('Starting tSNE...')
+
+		#apply dimensionality reduction: 5 to 2 dimensions
+		X_embedded = skmanifold.TSNE(n_components = 2).fit_transform(encoder_output)
+
+		print(f'Finished tSNE. Runtime: {time.time()-starttime:0.03f} s')
+
+		scatterplot_2dim(X_embedded, cluster_labels)
+	else:
+		scatterplot_2dim(encoder_output, cluster_labels)
+
+	name_addition = ''
+	if use_tSNE:
+		name_addition += '_tSNE'
+
+	if use_tSNE:
+		plt.title(f'Encoder output in 2 tSNE dimensions with {algorithm} clustering')
+	else:
+		plt.title(f'Encoder output in 2 of 5 dimensions with {algorithm} clustering')
+
+	plt.savefig(f'{encoder_clustering_output_loc}/Encoder_val_{algorithm}_clustering{name_addition}.png', bbox_inches = 'tight', dpi = 200)
 	plt.close()
 
 def plot_autoencoder_output(val_image_array, autoencoder_output):
@@ -180,7 +261,7 @@ def plot_autoencoder_output(val_image_array, autoencoder_output):
 		plt.imshow(autoencoder_output[i,:,:,0], cmap = 'gray')
 		plt.title('Autoencoder output')
 
-		plt.savefig(f'{output_loc}/Autoencoder_output_{i}.png', bbox_inches = 'tight', dpi = 200)
+		plt.savefig(f'{autoencoder_imgs_output_loc}/Autoencoder_output_{i}.png', bbox_inches = 'tight', dpi = 200)
 		plt.close()
 
 def load_single_img(current_label):
@@ -248,7 +329,7 @@ def train_model(n_images, n_val_set, autoencoder):
 
 	return history, train_images, val_images
 
-def train_or_load_model(n_images, n_val_set, loadmodel = False):
+def train_or_load_model(n_images, n_val_set, loadmodel = False, load_val_imgs = True):
 	if loadmodel:
 		print ("Loading architecture from file")
 		encoder = saveLoadModel(f'{output_loc}/encoder.h5', save = False, load = True)
@@ -258,7 +339,10 @@ def train_or_load_model(n_images, n_val_set, loadmodel = False):
 		encoder.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 		autoencoder.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
-		val_images = load_images(labels[n_images:n_images+n_val_set], load_val_images = True)
+		if load_val_imgs:
+			val_images = load_data(n_images, n_val_set, load_train_images = False)
+		else:
+			val_images = np.array([])
 	else:
 		print ("Creating new model")
 		encoder, autoencoder = create_model()
@@ -279,30 +363,51 @@ def train_or_load_model(n_images, n_val_set, loadmodel = False):
 	return encoder, autoencoder, val_images
 
 
+def run_predictions(encoder, autoencoder, val_images, load_val_imgs = True):
+	if load_val_imgs:
+		encoder_output = encoder.predict(val_images)
+
+		#save output to file if we want to analyse it later
+		np.save(f'{output_loc}/encoder_val_output.npy', encoder_output)
+	else:
+		encoder_output = np.load(f'{output_loc}/encoder_val_output.npy')
+
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAM', use_tSNE = False)
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = False)
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = False)
+
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAM', use_tSNE = True)
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = True)
+	cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True)
+
+
+	#also plot autoencoder output to see the compression it applies
+	# plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
+
 
 #### Tweakable parameters
 version = 2
-n_images = 12000
+#number of images for training (10% will be split off for the test set)
+n_images = 11000
+#number of images for validation
 n_val_set = 950
+
 loadmodel = True
+#True: load all validation images. False: load only the encoder output
+load_val_imgs = False
 
 
 output_loc = f'autoencoder_{version}'
 #check if the output folder is present and if not, make one
 checkFolders([output_loc])
+#make folders in the output loc
+autoencoder_imgs_output_loc = f'{output_loc}/Autoencoder_imgs'
+encoder_clustering_output_loc = f'{output_loc}/Encoder_clustering'
+checkFolders([autoencoder_imgs_output_loc, encoder_clustering_output_loc])
 
 
 #### Train the network
-encoder, autoencoder, val_images = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel)
-
+encoder, autoencoder, val_images = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel, load_val_imgs = load_val_imgs)
 
 #### now make some predictions
-encoder_output = encoder.predict(val_images)
-
-#save output to file if we want to analyse it later
-np.save(f'{output_loc}/encoder_val_output.npy', encoder_output)
-
-plot_encoder_output(encoder_output)
-
-#also plot autoencoder output to see the compression it applies
-plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
+run_predictions(encoder, autoencoder, val_images, load_val_imgs = load_val_imgs)
