@@ -72,7 +72,7 @@ class DiscriminatorDataGenerator(Sequence):
 	DataGenerator to be used for training of a CGAN
 	"""
 
-	def __init__(self, label_list, speed_root,
+	def __init__(self, label_list, speed_root,labels_sel=None,
 				batch_size=32, dim=(1920, 1200,1),
 				shuffle=True, seed = 1, real_p = 0.5,
 				generator = None, latent_dim = None, hidden_dim = None,
@@ -90,7 +90,11 @@ class DiscriminatorDataGenerator(Sequence):
 		self.batch_size = batch_size
 		self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 									 for label in label_list}
-		self.list_IDs = [label['filename'] for label in label_list]
+		print(labels_sel)
+		if labels_sel is None:
+			self.list_IDs = [label['filename'] for label in label_list]
+		else:
+			self.list_IDs = labels_sel
 		self.shuffle = shuffle
 		self.indexes = None
 		self.on_epoch_end()
@@ -188,7 +192,7 @@ class GeneratorDataGenerator(Sequence):
 	DataGenerator to be used for training of a CGAN
 	"""
 
-	def __init__(self, label_list, speed_root,
+	def __init__(self, label_list, speed_root,labels_sel=None,
 				batch_size=32, dim=(1200, 1920),
 				shuffle=True, seed = 1, real_p = 0.5,
 				generator = None, latent_dim = None, clip_range = None):
@@ -205,7 +209,10 @@ class GeneratorDataGenerator(Sequence):
 		self.batch_size = int(batch_size/2)
 		self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 									 for label in label_list}
-		self.list_IDs = [label['filename'] for label in label_list]
+		if labels_sel is None:
+			self.list_IDs = [label['filename'] for label in label_list]
+		else:
+			self.list_IDs = labels_sel
 		self.shuffle = shuffle
 		self.indexes = None
 		self.on_epoch_end()
@@ -284,6 +291,8 @@ class CGAN(object):
 		self.load_model = load_model
 		
 		self.clip_range=(0,255)
+		
+		self.cluster = 2
 
 		self.dim = (160, 256,1)
 		#size of the test set as a fraction of the total amount of data
@@ -385,7 +394,11 @@ class CGAN(object):
 		with open(os.path.join(self.dataset_loc, 'train' + '.json'), 'r') as f:
 			label_list = json.load(f)
 
-		label_list = label_list[:6000]
+#		label_list = label_list[:6000]
+		labels_autoenc = np.load('autoencoder/image_labels.npy')
+		clusters_autoenc = np.load('autoencoder/hierarch_cluster_labels.npy')
+		labels_autoenc = labels_autoenc[clusters_autoenc==self.cluster]
+		labels_sel=np.array([x['filename'] for x in labels_autoenc])
 
 		#shuffle and split
 		train_labels, validation_labels = model_selection.train_test_split(
@@ -395,10 +408,12 @@ class CGAN(object):
 		self.training_discriminator = DiscriminatorDataGenerator(
 				label_list,
 				self.dataset_loc,
+				labels_sel=labels_sel,
 				**self.params)
 		self.training_generator = GeneratorDataGenerator(
 				label_list,
 				self.dataset_loc,
+				labels_sel=labels_sel,
 				**self.params)
 
 	def train_cgan(self):
