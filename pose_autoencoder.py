@@ -1,6 +1,5 @@
 import os
 import json
-import random
 import time
 
 import numpy as np
@@ -19,10 +18,13 @@ from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, F
 from keras.models import Sequential, Model
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
-#https://github.com/scikit-learn-contrib/hdbscan
+#Hierarchial DBSCAN: https://github.com/scikit-learn-contrib/hdbscan
 import hdbscan
+#Parallel tSNE: https://github.com/DmitryUlyanov/Multicore-TSNE
+from MulticoreTSNE import MulticoreTSNE as TSNE
 import sklearn.cluster as skcluster
-import sklearn.manifold as skmanifold
+# import sklearn.manifold as skmanifold
+
 from tqdm import tqdm
 
 from pose_utils import KerasDataGenerator, SatellitePoseEstimationDataset, Camera, checkFolders
@@ -216,6 +218,8 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	elif algorithm == 'k-means':
 		#agglomerative (hierarchial) clustering
 		clusterer = skcluster.KMeans(n_clusters = 4)
+	else:
+		raise ValueError(f'{algorithm}: invalid algorithm specified')
 
 	#fit the algorithm and extract labels
 	clusterer.fit(encoder_output)
@@ -224,11 +228,12 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 
 
 	if use_tSNE:
+		#apply tSNE dimensionality reduction
 		starttime = time.time()
 		print('Starting tSNE...')
 
 		#apply dimensionality reduction: 5 to 2 dimensions
-		X_embedded = skmanifold.TSNE(n_components = 2).fit_transform(encoder_output)
+		X_embedded = TSNE(n_components = 2, n_jobs = 8).fit_transform(encoder_output)
 
 		print(f'Finished tSNE. Runtime: {time.time()-starttime:0.03f} s')
 
@@ -265,7 +270,6 @@ def plot_autoencoder_output(val_image_array, autoencoder_output):
 		plt.close()
 
 def load_single_img(current_label):
-	# current_label = random.choice(labels)
 	current_filename = current_label["filename"]
 	current_bbox = np.array([current_label["bbox"]])
 
@@ -372,13 +376,13 @@ def run_predictions(encoder, autoencoder, val_images, load_val_imgs = True):
 	else:
 		encoder_output = np.load(f'{output_loc}/encoder_val_output.npy')
 
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAM', use_tSNE = False)
+	# cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAN', use_tSNE = False)
 	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = False)
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = False)
+	# cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = False)
 
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAM', use_tSNE = True)
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = True)
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True)
+	# cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAN', use_tSNE = True)
+	# cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = True)
+	# cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True)
 
 
 	#also plot autoencoder output to see the compression it applies
