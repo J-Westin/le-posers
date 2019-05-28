@@ -177,15 +177,13 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	to see if the observed clustering is representative of real grouping
 	"""
 
-	def scatterplot_2dim(X, cluster_labels = None):
+	def scatterplot_2dim(X, cluster_labels = None, unique_labels = None):
 		"""
 		Make a 2D scatter plot of some data using labels where possible
 		"""
 
 		#process the labels for nice colour maps
 		if cluster_labels is not None:
-			unique_labels = np.unique(cluster_labels)
-
 			#obtain a colour map for the different cluster labels
 			jet = plt.get_cmap('jet')
 			cNorm  = colors.Normalize(vmin = 0, vmax = len(unique_labels))
@@ -201,6 +199,8 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 							alpha = 0.6, label = cluster_lab)
 
 			plt.legend(loc = 'best')
+
+			return scalarMap
 		else:
 			#without label markers (as there are no labels available)
 			plt.scatter(X[:,0],
@@ -212,6 +212,9 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	if algorithm == 'HDBSCAN':
 		#start clustering with HDBSCAN
 		clusterer = hdbscan.HDBSCAN()
+	elif algorithm == 'DBSCAN':
+		#start clustering with HDBSCAN
+		clusterer = skcluster.DBSCAN(eps = 0.08)
 	elif algorithm == 'hierarch':
 		#agglomerative (hierarchial) clustering
 		clusterer = skcluster.AgglomerativeClustering(n_clusters = 4)
@@ -225,6 +228,7 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	clusterer.fit(encoder_output)
 	cluster_labels = clusterer.labels_
 
+	unique_labels = np.unique(cluster_labels)
 
 
 	if use_tSNE:
@@ -237,9 +241,9 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 
 		print(f'Finished tSNE. Runtime: {time.time()-starttime:0.03f} s')
 
-		scatterplot_2dim(X_embedded, cluster_labels)
+		scalarMap = scatterplot_2dim(X_embedded, cluster_labels, unique_labels)
 	else:
-		scatterplot_2dim(encoder_output, cluster_labels)
+		scalarMap = scatterplot_2dim(encoder_output, cluster_labels, unique_labels)
 
 	name_addition = ''
 	if use_tSNE:
@@ -252,6 +256,48 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 
 	plt.savefig(f'{encoder_clustering_output_loc}/Encoder_val_{algorithm}_clustering{name_addition}.png', bbox_inches = 'tight', dpi = 200)
 	plt.close()
+
+
+	#### Now we will plot images of examples of every cluster found
+	assert len(val_images) == encoder_output.shape[0], 'Number of validation images not equal to encoder output. Did you actually load the validation images?'
+
+	#number of images per cluster label
+	n_per_cluster = 12
+
+	for j, lab in enumerate(tqdm(unique_labels, desc = 'Saving images per cluster label')):
+		#extract the first n_per_cluster positions
+		locs = np.where(cluster_labels == lab)[0][:n_per_cluster]
+
+		for i in tqdm(range(len(locs))):
+			plt.imshow(val_images[locs[i],:,:,0], cmap = 'gray')
+
+			imgheight = val_images[locs[i],:,:,0].shape[0]
+			imgwidth = val_images[locs[i],:,:,0].shape[1]
+
+			#add a box with colour matching that of the scatter plot
+			rectwidth = 10
+			rectheight = 10
+			rect = patches.Rectangle((0, 0),
+			 				rectwidth, rectheight,
+							facecolor = scalarMap.to_rgba(j),
+							linewidth = 0)
+			# Add the patch to the Axes
+			ax = plt.gca()
+			ax.add_patch(rect)
+
+			#fix limits so we don't get a whitespace due to the Rectangle
+			#being close to the axes
+			plt.xlim((0, imgwidth))
+			plt.ylim((imgheight, 0))
+
+			font = {'family': 'serif',
+		        'color': scalarMap.to_rgba(j),
+		        'weight': 'normal'
+	        	}
+			plt.title(f'Validation image cluster {lab} number {i}', fontdict = font)
+
+			plt.savefig(f'{encoder_clustering_output_loc}/Val_image_{algorithm}_c{lab}_idx{i}.png', bbox_inches = 'tight', dpi = 200)
+			plt.close()
 
 def plot_autoencoder_output(val_image_array, autoencoder_output):
 	print(autoencoder_output.shape)
@@ -376,14 +422,7 @@ def run_predictions(encoder, autoencoder, val_images, load_val_imgs = True):
 	else:
 		encoder_output = np.load(f'{output_loc}/encoder_val_output.npy')
 
-	# cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAN', use_tSNE = False)
 	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = False)
-	# cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = False)
-
-	# cluster_encoder_output(encoder_output, val_images, algorithm = 'HDBSCAN', use_tSNE = True)
-	# cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = True)
-	# cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True)
-
 
 	#also plot autoencoder output to see the compression it applies
 	# plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
@@ -392,13 +431,13 @@ def run_predictions(encoder, autoencoder, val_images, load_val_imgs = True):
 #### Tweakable parameters
 version = 2
 #number of images for training (10% will be split off for the test set)
-n_images = 11000
+n_images = 0
 #number of images for validation
-n_val_set = 950
+n_val_set = 12000
 
 loadmodel = True
 #True: load all validation images. False: load only the encoder output
-load_val_imgs = False
+load_val_imgs = True
 
 
 output_loc = f'autoencoder_{version}'
