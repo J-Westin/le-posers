@@ -39,6 +39,13 @@ from tensorflow.python import debug as tf_debug
 	Example script demonstrating training on the SPEED dataset using Keras.
 	Usage example: python keras_example.py --epochs [num epochs] --batch [batch size]
 """
+
+def generator_loss(x,y):
+	return -keras.losses.logcosh(x,y)
+
+
+
+
 class EarlyStoppingByLossVal(keras.callbacks.Callback):
 	'''
 	From: https://stackoverflow.com/questions/37293642/how-to-tell-keras-stop-training-based-on-loss-value
@@ -299,7 +306,7 @@ class CGAN(object):
 		self.image_root = os.path.join(self.dataset_loc, 'images', 'train')
 #		self.loss_g=keras.losses.mean_squared_error
 #		self.loss_g=keras.losses.logcosh
-		self.loss_g=lambda x,y: -keras.losses.logcosh(x,y)
+		self.loss_g=generator_loss
 		self.loss_d=keras.losses.logcosh
 #		self.loss=keras.losses.binary_crossentropy
 
