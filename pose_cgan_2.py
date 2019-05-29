@@ -18,6 +18,7 @@ from keras.utils.vis_utils import plot_model
 
 
 from PIL import Image
+import cv2
 
 import numpy as np
 import os
@@ -38,6 +39,13 @@ from tensorflow.python import debug as tf_debug
 	Example script demonstrating training on the SPEED dataset using Keras.
 	Usage example: python keras_example.py --epochs [num epochs] --batch [batch size]
 """
+
+def generator_loss(x,y):
+	return -keras.losses.logcosh(x,y)
+
+
+
+
 class EarlyStoppingByLossVal(keras.callbacks.Callback):
 	'''
 	From: https://stackoverflow.com/questions/37293642/how-to-tell-keras-stop-training-based-on-loss-value
@@ -64,14 +72,15 @@ class DiscriminatorDataGenerator(Sequence):
 	DataGenerator to be used for training of a CGAN
 	"""
 
-	def __init__(self, label_list, speed_root,
+	def __init__(self, label_list, speed_root,labels_sel=None,
 				batch_size=32, dim=(1920, 1200,1),
 				shuffle=True, seed = 1, real_p = 0.5,
-				generator = None, latent_dim = None, hidden_dim = None):
+				generator = None, latent_dim = None, hidden_dim = None,
+				clip_range = None):
 
 		# loading dataset
 		self.image_root = os.path.join(speed_root, 'images', 'train')
-
+		self.clip_range=clip_range
 		# Initialization
 		self.dim = dim
 		self.real_p = real_p
@@ -81,7 +90,11 @@ class DiscriminatorDataGenerator(Sequence):
 		self.batch_size = batch_size
 		self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 									 for label in label_list}
-		self.list_IDs = [label['filename'] for label in label_list]
+		print(labels_sel)
+		if labels_sel is None:
+			self.list_IDs = [label['filename'] for label in label_list]
+		else:
+			self.list_IDs = labels_sel
 		self.shuffle = shuffle
 		self.indexes = None
 		self.on_epoch_end()
@@ -144,7 +157,8 @@ class DiscriminatorDataGenerator(Sequence):
 	
 	
 				# flatten and output
-				x = np.expand_dims(keras_image.img_to_array(img)[...,0]/255.,2)
+#				np.expand_dims(keras_image.img_to_array(img)[...,0]/255.,2)
+				x = np.expand_dims((np.clip(keras_image.img_to_array(img)[...,0],self.clip_range[0],self.clip_range[1])-self.clip_range[0])/(-self.clip_range[0]+self.clip_range[1]),2)
 				pose = np.concatenate([q, r])
 			else:
 #				noise = np.random.rand(self.latent_dim).reshape(1,self.latent_dim)
@@ -178,13 +192,14 @@ class GeneratorDataGenerator(Sequence):
 	DataGenerator to be used for training of a CGAN
 	"""
 
-	def __init__(self, label_list, speed_root,
+	def __init__(self, label_list, speed_root,labels_sel=None,
 				batch_size=32, dim=(1200, 1920),
 				shuffle=True, seed = 1, real_p = 0.5,
-				generator = None, latent_dim = None):
+				generator = None, latent_dim = None, clip_range = None):
 
 		# loading dataset
 		self.image_root = os.path.join(speed_root, 'images', 'train')
+		self.clip_range=clip_range
 
 		# Initialization
 		self.dim = dim
@@ -194,7 +209,10 @@ class GeneratorDataGenerator(Sequence):
 		self.batch_size = int(batch_size/2)
 		self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 									 for label in label_list}
-		self.list_IDs = [label['filename'] for label in label_list]
+		if labels_sel is None:
+			self.list_IDs = [label['filename'] for label in label_list]
+		else:
+			self.list_IDs = labels_sel
 		self.shuffle = shuffle
 		self.indexes = None
 		self.on_epoch_end()
@@ -265,11 +283,16 @@ class GeneratorDataGenerator(Sequence):
 class CGAN(object):
 
 	def __init__(self, batch_size, epochs, version, load_model, reps = 4):
+		
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
 		self.version = version
 		self.load_model = load_model
+		
+		self.clip_range=(0,255)
+		
+		self.cluster = 2
 
 		self.dim = (160, 256,1)
 		#size of the test set as a fraction of the total amount of data
@@ -289,9 +312,10 @@ class CGAN(object):
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
 		self.dataset_loc = 'speed/speed/'
+		self.image_root = os.path.join(self.dataset_loc, 'images', 'train')
 #		self.loss_g=keras.losses.mean_squared_error
 #		self.loss_g=keras.losses.logcosh
-		self.loss_g=lambda x,y: -keras.losses.logcosh(x,y)
+		self.loss_g=generator_loss
 		self.loss_d=keras.losses.logcosh
 #		self.loss=keras.losses.binary_crossentropy
 
@@ -311,7 +335,8 @@ class CGAN(object):
 				  'batch_size': self.batch_size,
 				  'latent_dim': self.latent_dim,
 				  'shuffle': True,
-				  'seed': 1}
+				  'seed': 1,
+				  'clip_range': self.clip_range}
 
 		self.dataloader()
 		if self.load_model < 0:
@@ -369,7 +394,11 @@ class CGAN(object):
 		with open(os.path.join(self.dataset_loc, 'train' + '.json'), 'r') as f:
 			label_list = json.load(f)
 
-		label_list = label_list[:6000]
+#		label_list = label_list[:6000]
+		labels_autoenc = np.load('autoencoder/image_labels.npy')
+		clusters_autoenc = np.load('autoencoder/hierarch_cluster_labels.npy')
+		labels_autoenc = labels_autoenc[clusters_autoenc==self.cluster]
+		labels_sel=np.array([x['filename'] for x in labels_autoenc])
 
 		#shuffle and split
 		train_labels, validation_labels = model_selection.train_test_split(
@@ -379,10 +408,12 @@ class CGAN(object):
 		self.training_discriminator = DiscriminatorDataGenerator(
 				label_list,
 				self.dataset_loc,
+				labels_sel=labels_sel,
 				**self.params)
 		self.training_generator = GeneratorDataGenerator(
 				label_list,
 				self.dataset_loc,
+				labels_sel=labels_sel,
 				**self.params)
 
 	def train_cgan(self):
@@ -553,10 +584,27 @@ class CGAN(object):
 			r = np.array([np.random.randn()*2.,np.random.randn()*2.,
 			  np.random.poisson(3.)])
 			pose = np.concatenate([q, r]).reshape(1,7)
-			x = (self.generator.predict([noise,pose])*255).reshape(self.dim[0],self.dim[1])
-			plt.imsave(f'cgantest/TestOutput_{ID}.png', x, cmap = 'gray', dpi = 300)
+			x = ((self.generator.predict([noise,pose]))*(self.clip_range[1]-self.clip_range[0])+self.clip_range[0]).reshape(self.dim[0],self.dim[1])
+#			print(np.amax(x))
+			plt.imsave(f'cgantest/TestOutput_{ID}.png', x, cmap = 'gray', dpi = 300, vmin = 0, vmax = 255)
+			
 			with open(f'cgantest/TestOutput_{ID}.txt', "w") as myfile:
 				myfile.write(str(pose))
+				
+			ID_e='img004844.jpg'
+			img_path = os.path.join(self.image_root, ID_e)
+			img = Image.open(img_path)
+			img = img.resize((self.dim[1],self.dim[0]))
+			img_a = keras_image.img_to_array(img)
+			
+			hist = cv2.calcHist([img_a], [0], None, [256], [0, 256])
+			plt.figure()
+			plt.title("Grayscale Histogram")
+			plt.xlabel("Bins")
+			plt.ylabel("# of Pixels")
+			plt.plot(hist)
+			plt.xlim([0, 50])
+			plt.savefig(f'cgantest/{ID_e}_hist.png')
 				
 	def model_total(self):
 		self.discriminator.trainable=False
@@ -590,7 +638,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 1)
 parser.add_argument('--batch', help='number of samples in a batch.', default = 4)
-parser.add_argument('--version', help='version of the neural network.', default = 18)
+parser.add_argument('--version', help='version of the neural network.', default = 19)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 args = parser.parse_args()
 
