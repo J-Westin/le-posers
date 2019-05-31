@@ -29,7 +29,7 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from cgan_architecture_5 import model_generator, model_discriminator
+from cgan_architecture_10 import model_generator, model_discriminator
 
 from tensorflow.python import debug as tf_debug
 
@@ -41,7 +41,8 @@ from tensorflow.python import debug as tf_debug
 """
 
 def generator_loss(x,y):
-	return -keras.losses.logcosh(x,y)
+#	return -keras.losses.logcosh(x,y)
+	return -keras.losses.binary_crossentropy(x,y)
 
 
 
@@ -81,6 +82,7 @@ class DiscriminatorDataGenerator(Sequence):
 		# loading dataset
 		self.image_root = os.path.join(speed_root, 'images', 'train')
 		self.clip_range=clip_range
+		self.seen=0
 		# Initialization
 		self.dim = dim
 		self.real_p = real_p
@@ -107,9 +109,11 @@ class DiscriminatorDataGenerator(Sequence):
 #		return int(np.floor(len(self.list_IDs) / self.batch_size)/self.r_factor)
 		return 1
 
-	def __getitem__(self, index):
+	def __getitem__(self, index_i):
 
 		""" Generate one batch of data """
+		index = (index_i+self.seen)%int(np.floor(len(self.list_IDs) / self.batch_size))
+		print(index)
 
 		# Generate indexes of the batch
 		indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
@@ -127,7 +131,9 @@ class DiscriminatorDataGenerator(Sequence):
 		""" Updates indexes after each epoch """
 
 		self.indexes = np.arange(len(self.list_IDs))
-		if self.shuffle:
+		self.seen += self.batch_size
+		if self.seen%int(np.floor(len(self.list_IDs) / self.batch_size))<self.batch_size:
+#		if self.shuffle:
 			np.random.shuffle(self.indexes)
 
 	
@@ -168,8 +174,9 @@ class DiscriminatorDataGenerator(Sequence):
 				q = q/np.linalg.norm(q)
 				# Generate random direction components
 				### TODO: Statistical analyisis of test data for expected values
-				r = np.array([np.random.randn()*2.,np.random.randn()*2.,
-				  np.random.poisson(3.)])
+				r = np.array([np.random.normal(loc=-0.001765,scale=0.321561),
+				  np.random.normal(loc=-0.003058,scale=0.411131),
+				  np.random.poisson(10.898330)])
 				pose = np.concatenate([q, r]).reshape(1,7)
 #				print(np.asarray(noise).shape)
 #				print(pose.shape)
@@ -177,7 +184,8 @@ class DiscriminatorDataGenerator(Sequence):
 				
 				x = self.generator.predict(ingen)	
 #				y[i] = np.random.rand()*0.1
-				y[i] = 0
+#				y[i] = 0
+				y[i] = 1
 				
 
 			X[i,] = x
@@ -206,7 +214,8 @@ class GeneratorDataGenerator(Sequence):
 		self.real_p = real_p
 		self.generator = generator
 		self.latent_dim = latent_dim
-		self.batch_size = int(batch_size/2)
+#		self.batch_size = int(batch_size/2)
+		self.batch_size = batch_size
 		self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 									 for label in label_list}
 		if labels_sel is None:
@@ -214,6 +223,7 @@ class GeneratorDataGenerator(Sequence):
 		else:
 			self.list_IDs = labels_sel
 		self.shuffle = shuffle
+		self.seen=0
 		self.indexes = None
 		self.on_epoch_end()
 		self.init = True
@@ -229,9 +239,11 @@ class GeneratorDataGenerator(Sequence):
 #			return int(np.floor(len(self.list_IDs) / self.batch_size)/self.r_factor)
 		return 1
 
-	def __getitem__(self, index):
+	def __getitem__(self, index_i):
 
 		""" Generate one batch of data """
+		index = (index_i+self.seen)%int(np.floor(len(self.list_IDs) / self.batch_size))
+		print(index)
 
 		# Generate indexes of the batch
 		indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
@@ -247,6 +259,7 @@ class GeneratorDataGenerator(Sequence):
 	def on_epoch_end(self):
 
 		""" Updates indexes after each epoch """
+		self.seen+=self.batch_size
 
 		self.indexes = np.arange(len(self.list_IDs))
 		if self.shuffle:
@@ -271,8 +284,9 @@ class GeneratorDataGenerator(Sequence):
 			q = q/np.linalg.norm(q)
 			# Generate random direction components
 			### TODO: Statistical analyisis of test data for expected values
-			r = np.array([np.random.randn()*2.,np.random.randn()*2.,
-			  np.random.poisson(3.)])
+			r = np.array([np.random.normal(loc=-0.001765,scale=0.321561),
+				  np.random.normal(loc=-0.003058,scale=0.411131),
+				  np.random.poisson(10.898330)])
 			pose = np.concatenate([q, r])
 			C[i,] = pose
 			y[i] = 0
@@ -305,7 +319,7 @@ class CGAN(object):
 
 		self.learning_rate_g = 0.0002
 		self.learning_rate_d = 0.0002
-		self.learning_rate_decay = 0.0
+		self.learning_rate_decay = 0.0001
 		self.reps = reps
 		self.epochs = epochs
 
@@ -315,9 +329,10 @@ class CGAN(object):
 		self.image_root = os.path.join(self.dataset_loc, 'images', 'train')
 #		self.loss_g=keras.losses.mean_squared_error
 #		self.loss_g=keras.losses.logcosh
-		self.loss_g=generator_loss
-		self.loss_d=keras.losses.logcosh
-#		self.loss=keras.losses.binary_crossentropy
+#		self.loss_g=generator_loss
+		self.loss_g=keras.losses.binary_crossentropy
+#		self.loss_d=keras.losses.logcosh
+		self.loss_d=keras.losses.binary_crossentropy
 
 
 		self.output_loc = f'./Version_CGAN_{self.version}/'
@@ -349,7 +364,8 @@ class CGAN(object):
 					optimizer = Adam(
 							lr = self.learning_rate_g,
 							decay = self.learning_rate_decay,
-							beta_1=0.5),
+							beta_1=0,
+							beta_2=0.9),
 					metrics = ['accuracy'])
 			self.discriminator = model_discriminator(
 					input_shape = self.dim,
@@ -359,7 +375,8 @@ class CGAN(object):
 					optimizer = Adam(
 							lr = self.learning_rate_d,
 							decay = self.learning_rate_decay,
-							beta_1=0.5),
+							beta_1=0,
+							beta_2=0.9),
 					metrics = ['accuracy'])
 			self.total = self.model_total()
 			self.total.compile(
@@ -367,7 +384,8 @@ class CGAN(object):
 					optimizer = Adam(
 							lr = self.learning_rate_g,
 							decay = self.learning_rate_decay,
-							beta_1=0.5),
+							beta_1=0,
+							beta_2=0.9),
 					metrics = ['accuracy'])
 		else:
 			print(self.load_model)
@@ -473,8 +491,8 @@ class CGAN(object):
 		# Train alternatively generator and discriminator
 		for rep in range(self.reps):
 			
-			K.set_value(self.total.optimizer.lr, self.learning_rate_g)
-			K.set_value(self.discriminator.optimizer.lr, self.learning_rate_d)
+#			K.set_value(self.total.optimizer.lr, self.learning_rate_g)
+#			K.set_value(self.discriminator.optimizer.lr, self.learning_rate_d)
 			# Train generator
 			print('Training iteration %i of generator' % rep)
 			# Load discriminator weights
@@ -498,15 +516,24 @@ class CGAN(object):
 			
 			
 			train_loss_total.extend(history.history['loss'])
+			history = self.total.fit_generator(
+					self.training_generator,
+					epochs=self.epochs,
+#					validation_data=self.validation_generator,
+					callbacks=callbacks_g)
+			#save the model
+			
+			
+			train_loss_total.extend(history.history['loss'])
 #			test_loss_total.extend(history.history['val_loss'])
 	
 #				print('Training losses: ', history.history['loss'])
 #				print('Validation losses: ', history.history['val_loss'])
 			
 			#save and plot losses
-#			self.gen_output.plot_save_losses(
-#					train_loss_total,
-#					test_loss_total)
+			self.gen_output.plot_save_losses_gan(
+					train_loss_total,
+					train_loss_discriminator)
 #			
 			#save the model
 			
@@ -581,8 +608,9 @@ class CGAN(object):
 			q = q/np.linalg.norm(q)
 			# Generate random direction components
 			### TODO: Statistical analyisis of test data for expected values
-			r = np.array([np.random.randn()*2.,np.random.randn()*2.,
-			  np.random.poisson(3.)])
+			r = np.array([np.random.normal(loc=-0.001765,scale=0.321561),
+				  np.random.normal(loc=-0.003058,scale=0.411131),
+				  np.random.poisson(10.898330)])
 			pose = np.concatenate([q, r]).reshape(1,7)
 			x = ((self.generator.predict([noise,pose]))*(self.clip_range[1]-self.clip_range[0])+self.clip_range[0]).reshape(self.dim[0],self.dim[1])
 #			print(np.amax(x))
@@ -591,7 +619,7 @@ class CGAN(object):
 			with open(f'cgantest/TestOutput_{ID}.txt', "w") as myfile:
 				myfile.write(str(pose))
 				
-			ID_e='img004844.jpg'
+			ID_e='img014933.jpg'
 			img_path = os.path.join(self.image_root, ID_e)
 			img = Image.open(img_path)
 			img = img.resize((self.dim[1],self.dim[0]))
@@ -603,7 +631,7 @@ class CGAN(object):
 			plt.xlabel("Bins")
 			plt.ylabel("# of Pixels")
 			plt.plot(hist)
-			plt.xlim([0, 50])
+#			plt.xlim([0, 50])
 			plt.savefig(f'cgantest/{ID_e}_hist.png')
 				
 	def model_total(self):
@@ -637,8 +665,8 @@ def main(batch_size, epochs, version, load_model):
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 1)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 4)
-parser.add_argument('--version', help='version of the neural network.', default = 19)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
+parser.add_argument('--version', help='version of the neural network.', default = 21)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 args = parser.parse_args()
 

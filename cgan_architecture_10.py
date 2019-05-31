@@ -36,49 +36,52 @@ def model_generator(latent_dim, input_shape, hidden_dim=1024):
 							  name="generator_c1")
 #	print(input_shape[0]*input_shape[1]*256/(S_T)**2)
 #	print((int(input_shape[0]/S_T),int(input_shape[1]/S_T),256))
-	x = keras.layers.Dense(4*8*1024, activation='relu', name='flatten_g')(x)
-	x = keras.layers.Reshape((4,8,1024), name="generator_x")(x)
-	x = keras.layers.Dropout(0.1)(x)
+	x = keras.layers.Dense(5*8*1024, activation=None, name='flatten_g')(x)
+	x = keras.layers.Reshape((5,8,1024), name="generator_x")(x)
+	x = keras.layers.BatchNormalization(momentum=0.6)(x)
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Dropout(0.4)(x)
 #	x = keras.layers.Lambda(lambda im:K.resize_images(im,b3r[0],b3r[1], 'channels_last'), name='block3_pool_g')(x)
-	x = keras.layers.Conv2DTranspose(512, (4, 4),
+	x = keras.layers.Conv2DTranspose(512, (5, 5),
 					  padding='same',
 					  strides=(2,2),
 					  name='block3_conv1_g')(x)
 	x = keras.layers.BatchNormalization(momentum=0.6)(x)
-	x = keras.layers.LeakyReLU(0.2)(x)
-#	x = keras.layers.ReLU()(x)
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
 #	x = keras.layers.UpSampling2D(size=(4, 4), name='block3_pool_g', interpolation='bilinear')(x)
 	
-	x = keras.layers.Conv2DTranspose(256, (4, 4),
+	x = keras.layers.Conv2DTranspose(256, (5, 5),
 					  padding='same',
 					  strides=(2,2),
 					  name='block2_conv2_g')(x)
 	x = keras.layers.BatchNormalization(momentum=0.6)(x)
-	x = keras.layers.LeakyReLU(0.2)(x)
-#	x = keras.layers.ReLU()(x)
-	x = keras.layers.Conv2DTranspose(128, (4, 4),
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Conv2DTranspose(128, (5, 5),
 					  padding='same',
 #					  strides=(2,2),
 					  name='block2_conv1_g')(x)
 	x = keras.layers.BatchNormalization(momentum=0.6)(x)
-	x = keras.layers.LeakyReLU(0.2)(x)
-#	x = keras.layers.ReLU()(x)
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
 #	x = keras.layers.UpSampling2D(size=(4, 4), name='block2_pool_g', interpolation='bilinear')(x)
-	x = keras.layers.Conv2DTranspose(64, (4, 4),
+	x = keras.layers.Conv2DTranspose(64, (5, 5),
 					  strides=(2,2),
 					  padding='same',
 					  name='block1_conv1_g')(x)
 	x = keras.layers.BatchNormalization(momentum=0.6)(x)
-	x = keras.layers.LeakyReLU(0.2)(x)
-#	x = keras.layers.ReLU()(x)
-	x = keras.layers.Conv2DTranspose(32, (4, 4),
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Conv2DTranspose(32, (5, 5),
 					  strides=(2,2),
 					  padding='same',
 					  name='block1_conv0_g')(x)
 	x = keras.layers.BatchNormalization(momentum=0.6)(x)
-	x = keras.layers.LeakyReLU(0.2)(x)
-#	x = keras.layers.ReLU()(x)
-	x = keras.layers.Conv2DTranspose(1, (4, 4),
+#	x = keras.layers.LeakyReLU(0.2)(x)
+	x = keras.layers.ReLU()(x)
+	x = keras.layers.Conv2DTranspose(1, (5, 5),
 					  strides=(2,2),
 					  padding='same',
 					  name='block0_conv0_g')(x)
@@ -95,7 +98,7 @@ def model_generator(latent_dim, input_shape, hidden_dim=1024):
 
 	# For debugging
 #	x = keras.layers.Lambda(lambda x:K.resize_images(x,1,1.77, 'channels_last'), name='block2_pool')(x)
-	x = keras.layers.Reshape(input_shape, name="generator_y")(x)
+#	x = keras.layers.Reshape(input_shape, name="generator_y")(x)
 	model_final = keras.models.Model(
 			inputs = [model_inputs1.input, model_inputs2.input],
 			outputs= x)
