@@ -515,6 +515,37 @@ class OutputResults(object):
 
 		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.png', dpi = 300, bbox_inches = 'tight')
 		plt.close()
+		
+	def plot_save_losses_gan(self, train_loss, test_loss):
+		"""
+		Save and plot the losses
+		"""
+		#save
+#		np.savetxt(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.txt', np.array([train_loss, test_loss]), header = 'train_loss test_loss')
+
+		#plot
+		plt.figure()
+#		plt.plot(np.arange(1, len(train_loss)+1), [-x for x in train_loss], label = 'Train loss')
+		plt.plot(np.arange(1, len(train_loss)+1), [x for x in train_loss], label = 'Train loss')
+
+		plt.plot(np.arange(1, len(test_loss)*2+1,2), test_loss, label = 'Test loss')
+
+		#set ylims starting at 0
+#		ylims = plt.ylim()
+#		plt.ylim((0, ylims[1]))
+
+		#set y scale to log if extremely large values are observed
+#		if (np.max(train_loss) - np.min(train_loss)) > 1e2 or (np.max(test_loss) - np.min(test_loss)) > 1e2:
+		plt.yscale('log')
+
+		plt.xlabel('Epoch')
+		plt.ylabel('Loss')
+		plt.title(f'Loss progression of version {self.pose_nn.version}')
+		plt.legend(loc = 'best')
+		plt.grid(alpha = 0.4)
+
+		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.png', dpi = 300, bbox_inches = 'tight')
+		plt.close()
 
 	def saveLoadModel(self, filename, model=None, save=False, load=False, loss=None):
 		"""
