@@ -290,7 +290,7 @@ if has_tf:
 
 		""" DataGenerator for Keras to be used with fit_generator (https://keras.io/models/sequential/#fit_generator)"""
 
-		def __init__(self, preprocessor, label_list, speed_root,
+		def __init__(self, preprocessor, label_list, speed_root, labels_sel = None,
 					batch_size=32, dim=(224, 224), n_channels=3,
 					shuffle=True, randomRotations = False, seed = 1,
 					crop = False, cropper_model = None):
@@ -304,7 +304,10 @@ if has_tf:
 			self.batch_size = batch_size
 			self.labels = {label['filename']: {'q': label['q_vbs2tango'], 'r': label['r_Vo2To_vbs_true']}
 										 for label in label_list}
-			self.list_IDs = [label['filename'] for label in label_list]
+			if labels_sel is None:
+				self.list_IDs = [label['filename'] for label in label_list]
+			else:
+				self.list_IDs = labels_sel
 			self.n_channels = n_channels
 			self.shuffle = shuffle
 			self.indexes = None

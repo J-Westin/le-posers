@@ -17,11 +17,12 @@ import numpy as np
 import os
 import argparse
 import time
+import warnings
 
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_23 import create_model
+from pose_architecture_24 import create_model
 
 
 """
@@ -31,7 +32,7 @@ from pose_architecture_23 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version, load_model, loss = "MSE", use_early_stop = False, crop = True):
+	def __init__(self, batch_size, epochs, version, load_model, loss = "MSE", use_early_stop = False, crop = True, cluster = None):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
@@ -40,6 +41,7 @@ class POSE_NN(object):
 		self.loss = loss
 		self.use_early_stop = use_early_stop
 		self.crop = crop
+		self.cluster = cluster
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
@@ -158,12 +160,28 @@ class POSE_NN(object):
 
 		# label_list = label_list[:n_imgs]
 
-		#shuffle and split
-		train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = self.test_size, shuffle = True)
-
-		# Data generators for training and validation
-		self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **self.params)
-		self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
+		if self.cluster not in [0,1,2,3]:
+			warnings.warn('No valid cluster has been defined, using the whole dataset')
+			#shuffle and split
+			train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = self.test_size, shuffle = True)
+	
+			# Data generators for training and validation
+			self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **self.params)
+			self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
+		else:
+			#		label_list = label_list[:6000]
+			labels_autoenc = np.load('autoencoder/image_labels.npy')
+			clusters_autoenc = np.load('autoencoder/hierarch_cluster_labels.npy')
+			labels_autoenc = labels_autoenc[clusters_autoenc==self.cluster]
+			labels_sel=np.array([x['filename'] for x in labels_autoenc])
+	
+			#shuffle and split
+			train_labels, validation_labels = model_selection.train_test_split(
+					labels_sel, test_size = self.test_size, shuffle = True)
+			# Data generators for training and validation
+			self.training_generator = KerasDataGenerator(preprocess_input, label_list, self.dataset_loc, labels_sel=train_labels, **self.params)
+			self.validation_generator = KerasDataGenerator(preprocess_input, label_list, self.dataset_loc, labels_sel=validation_labels, **self.params)
+			
 
 	def train_model(self):
 		"""
@@ -279,12 +297,12 @@ class POSE_NN(object):
 		return tf.add(score_r,score_q)
 
 
-def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop)
+	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster)
 
 	#train the network
 	pose.train_model()
@@ -302,6 +320,7 @@ parser.add_argument('--load', help='load a previously trained network.', default
 parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
 parser.add_argument('--early_stopping', help='use early stopping.', default = False)
 parser.add_argument('--crop', help='use crop.', default = True)
+parser.add_argument('--cluster', help='Cluster of images to use for training.', default = 2)
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), args.early_stopping == 'True', args.crop == 'True')
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop), int(args.cluster))
