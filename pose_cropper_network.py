@@ -137,11 +137,11 @@ def plot_save_losses(train_loss, test_loss):
 
 	plt.xlabel('Epoch')
 	plt.ylabel('Loss')
-	plt.title(f'Loss progression of cropping network')
+	plt.title(f'Loss progression of cropping network with cluster label {target_label}')
 	plt.legend(loc = 'best')
 	plt.grid(alpha = 0.4)
 
-	plt.savefig(f'{output_loc}/Cropping_Losses.png', dpi = 300, bbox_inches = 'tight')
+	plt.savefig(f'{output_loc}/Cropping_losses_c{target_label}.png', dpi = 300, bbox_inches = 'tight')
 	plt.close()
 
 def plot_prediction(image, true_label, pred_label, i):
@@ -282,10 +282,10 @@ def train_bb_model(use_frac, model, target_label, n_val_set = 20):
 	#note: the early stopping restores the weights of the network with
 	#the lowest test loss
 	early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
-					patience = 13, verbose = 1,
+					patience = 9, verbose = 1,
 					restore_best_weights = True, min_delta = 0)
 	reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss',
-					factor = 0.5, patience = 4, verbose = 1,
+					factor = 0.25, patience = 4, verbose = 1,
 					min_delta = 0, min_lr = 1e-8)
 
 	#data is shuffled in fit
@@ -310,7 +310,7 @@ def make_model(loadmodel = False):
 
 #### Fix some parameters
 #which cluster label to train the network for. Possible: [0, 1, 2]
-target_label = 0
+target_label = 2
 #number of validation images to use for plotting examples
 n_val_set = 20
 #size of the input images for the network
