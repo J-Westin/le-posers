@@ -32,72 +32,72 @@ recreate_json = False # Creates a new JSON file with bbox training label even if
 
 train_dir = os.path.join(dataset_dir, "images/train")
 
-output_loc = 'bbox_jw_4'
+output_loc = 'bbox_jw_6'
 #check if the output folder is present and if not, make one
 checkFolders([output_loc])
 
-imgsize = (240, 150) #used to be(120, 75)
+imgsize = (256, 160) #used to be(120, 75)
 
 def create_bbox_json(margins=default_margins):
 	bbox_json_filepath_expected = os.path.join(dataset_dir, "train_bbox.json")
-	
+
 	if recreate_json or (not os.path.exists(bbox_json_filepath_expected)):
 		my_dataset = SatellitePoseEstimationDataset(root_dir=dataset_dir)
 		my_dataset.generate_bbox_json(margins)
-	
+
 	bbox_json_file = open(bbox_json_filepath_expected, 'r')
 	bbox_training_labels = json.load(bbox_json_file)
 	bbox_json_file.close()
-	
+
 	return bbox_training_labels
 
 def create_bb_model():
 	bb_model = Sequential()
-	
-	bb_model.add(Conv2D(filters=32, kernel_size=7, 
-					input_shape=(imgsize[1], imgsize[0], 1), 
+
+	bb_model.add(Conv2D(filters=32, kernel_size=7,
+					input_shape=(imgsize[1], imgsize[0], 1),
 					padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
-	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+
+	bb_model.add(Conv2D(filters=32, kernel_size=5,
 				padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
-	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+
+	bb_model.add(Conv2D(filters=32, kernel_size=5,
 				padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
-	
-	bb_model.add(Conv2D(filters=32, kernel_size=5, 
+
+	bb_model.add(Conv2D(filters=32, kernel_size=5,
 				padding='valid', use_bias=True))
 	bb_model.add(BatchNormalization())
 	bb_model.add(Activation('relu'))
 	bb_model.add(MaxPooling2D(pool_size=(2,2)))
-	
+
 	'''
 	bb_model.add(Flatten())
-	
+
 	intermediate_sizes = [50, 20]
-	
+
 	for layersize in intermediate_sizes:
 		bb_model.add(Dense(units=layersize, activation="relu"))
 		bb_model.add(Dropout(0.3))
 	'''
 
 	bb_model.add(GlobalAveragePooling2D())
-	
+
 	#now make the output layer
 	bb_model.add(Dense(units=4, activation="sigmoid"))
 
 	#also make a flow chart of the model
 	plot_model(bb_model, to_file = f'{output_loc}/model_arch.png', show_shapes = True, show_layer_names = True)
 
-	
+
 	return bb_model
 
 def saveLoadModel(filename, model=None, save=False, load=False):
@@ -117,7 +117,7 @@ def saveLoadModel(filename, model=None, save=False, load=False):
 			return
 		print('Loading model from {0}'.format(filename))
 		model = keras.models.load_model(filename)
-		
+
 		return model
 
 def plot_save_losses(train_loss, test_loss):
@@ -135,9 +135,7 @@ def plot_save_losses(train_loss, test_loss):
 	ylims = plt.ylim()
 	plt.ylim((0, ylims[1]))
 
-	#set y scale to log if extremely large values are observed
-	if (np.max(train_loss) - np.min(train_loss)) > 1e2 or (np.max(test_loss) - np.min(test_loss)) > 1e2:
-		plt.yscale('log')
+	plt.yscale('log')
 
 	plt.xlabel('Epoch')
 	plt.ylabel('Loss')
@@ -160,7 +158,7 @@ def plot_prediction(image, true_label, pred_label, i):
 		else:
 			colour = 'red'
 
-		rect = patches.Rectangle((x, y), width, height, 
+		rect = patches.Rectangle((x, y), width, height,
 						facecolor = 'none', edgecolor = colour,
 						linewidth = 1.5, label = name)
 		# Add the patch to the Axes
@@ -190,7 +188,7 @@ def load_single_img(current_label):
 	# current_label = random.choice(labels)
 	current_filename = current_label["filename"]
 	current_bbox = np.array([current_label["bbox"]])
-	
+
 	current_filepath = os.path.join(train_dir, current_filename)
 	current_image_pil = Image.open(current_filepath)
 	current_image_pil = current_image_pil.resize(imgsize, resample=Image.BICUBIC)
@@ -208,7 +206,7 @@ def train_bb_model(n_images, model, n_val_set = 20):
 	if n_images + n_val_set > 12000:
 		print('WARNING: reducing train set size')
 		n_images -= n_val_set
-	
+
 	#load train set
 	image_array = []
 	label_array = []
@@ -231,17 +229,17 @@ def train_bb_model(n_images, model, n_val_set = 20):
 	val_label_array = np.array(val_label_array)[:,0]
 
 	early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
-					patience = 15, verbose = 1,
-					restore_best_weights = True, min_delta = 1e-2)
-	reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', 
-					factor = 0.7, patience = 6, verbose = 1,
-					min_delta = 1e-2, min_lr = 1e-6)
+					patience = 16, verbose = 1,
+					restore_best_weights = True, min_delta = 0)
+	reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss',
+					factor = 0.5, patience = 4, verbose = 1,
+					min_delta = 0, min_lr = 1e-8)
 
-	#data is shuffled in fit		
+	#data is shuffled in fit
 	history = model.fit(image_array, label_array,
-				epochs = 30, validation_split = 0.1,
+				epochs = 100, validation_split = 0.1,
 				batch_size = 32, shuffle = True,
-				callbacks = [reduce_lr])
+				callbacks = [early_stopping, reduce_lr])
 
 	return history, image_array, label_array, val_image_array, val_label_array
 
@@ -265,7 +263,6 @@ bb_model = make_model()
 bb_model.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
 
 
-print('Commencing training')
 n_val_set = 20
 history, image_array, label_array, val_image_array, val_label_array = train_bb_model(11000, bb_model, n_val_set = n_val_set)
 train_loss = history.history['loss']

@@ -15,7 +15,7 @@ from PIL import Image
 
 import keras
 
-from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D, Input, UpSampling2D, Reshape
+from keras.layers import Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D, Input, UpSampling2D, Reshape, Conv2DTranspose
 from keras.models import Sequential, Model
 from keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
@@ -44,7 +44,7 @@ train_dir = os.path.join(dataset_dir, "images/train")
 
 imgsize = (256, 160) #used to be(120, 75)
 
-def create_json(margins=default_margins):
+def create_json(margins = default_margins, ):
 	bbox_json_filepath_expected = os.path.join(dataset_dir, "train_bbox.json")
 
 	if recreate_json or (not os.path.exists(bbox_json_filepath_expected)):
@@ -58,6 +58,13 @@ def create_json(margins=default_margins):
 	return bbox_training_labels
 
 def create_model():
+	"""
+	Creates the autoencoder model
+	"""
+
+	'''
+	We could also use Conv2DTranspose to do the upsampling
+	'''
 	# the input layer
 	input_img = Input(shape = (imgsize[1], imgsize[0], 1))
 
@@ -172,7 +179,7 @@ def plot_save_losses(train_loss, test_loss):
 	plt.savefig(f'{output_loc}/Autoencoder_Losses.png', dpi = 300, bbox_inches = 'tight')
 	plt.close()
 
-def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', use_tSNE = True):
+def cluster_encoder_output(encoder_output, images, labelloc, clusterplotloc, imgplotloc, fnames, algorithm = 'k-means', use_tSNE = True):
 	"""
 	Applies a clustering algorithm from sklearn to the output of an encoder
 	to see if the observed clustering is representative of real grouping
@@ -218,10 +225,10 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 		clusterer = skcluster.DBSCAN(eps = 0.08)
 	elif algorithm == 'hierarch':
 		#agglomerative (hierarchial) clustering
-		clusterer = skcluster.AgglomerativeClustering(n_clusters = 4)
+		clusterer = skcluster.AgglomerativeClustering(n_clusters = 3)
 	elif algorithm == 'k-means':
 		#agglomerative (hierarchial) clustering
-		clusterer = skcluster.KMeans(n_clusters = 4)
+		clusterer = skcluster.KMeans(n_clusters = 3)
 	else:
 		raise ValueError(f'{algorithm}: invalid algorithm specified')
 
@@ -229,11 +236,14 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	clusterer.fit(encoder_output)
 	cluster_labels = clusterer.labels_
 
-	np.save(f'{encoder_clustering_output_loc}/{algorithm}_cluster_labels.npy', cluster_labels)
+	#save the cluster labels and filenames
+	np.savetxt(f'{labelloc}/{algorithm}_cluster_labels.txt', np.array([fnames, cluster_labels]).T, fmt = '%s')
+	np.save(f'{labelloc}/{algorithm}_cluster_labels.npy', np.array([fnames, cluster_labels]).T)
 
 	unique_labels = np.unique(cluster_labels)
 
 
+	##### Plot the clustering in encoder space or tSNE space
 	if use_tSNE:
 		#apply tSNE dimensionality reduction
 		starttime = time.time()
@@ -257,32 +267,32 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	else:
 		plt.title(f'Encoder output in 2 of 5 dimensions with {algorithm} clustering')
 
-	plt.savefig(f'{encoder_clustering_output_loc}/Encoder_val_{algorithm}_clustering{name_addition}.png', bbox_inches = 'tight', dpi = 200)
+	plt.savefig(f'{clusterplotloc}/Encoder_val_{algorithm}_clustering{name_addition}.png', bbox_inches = 'tight', dpi = 200)
 	plt.close()
 
 
 	#### Now we will plot images of examples of every cluster found
-	assert len(val_images) == encoder_output.shape[0], 'Number of validation images not equal to encoder output. Did you actually load the validation images?'
+	assert len(images) == encoder_output.shape[0], 'Number of validation images not equal to encoder output. Did you actually load the validation images?'
 
 	#we first want to shuffle all three arrays so we are not introducing
 	#systematic bias
-	shuffle_loc = np.random.permutation(len(val_images))
-	val_images = val_images[shuffle_loc]
+	shuffle_loc = np.random.permutation(len(images))
+	images = images[shuffle_loc]
 	encoder_output = encoder_output[shuffle_loc]
 	cluster_labels = cluster_labels[shuffle_loc]
 
 	#number of images per cluster label
-	n_per_cluster = 12
+	n_per_cluster = 20
 
 	for j, lab in enumerate(tqdm(unique_labels, desc = 'Saving images per cluster label')):
 		#extract the first n_per_cluster positions
 		locs = np.where(cluster_labels == lab)[0][:n_per_cluster]
 
 		for i in tqdm(range(len(locs))):
-			plt.imshow(val_images[locs[i],:,:,0], cmap = 'gray')
+			plt.imshow(images[locs[i],:,:,0], cmap = 'gray')
 
-			imgheight = val_images[locs[i],:,:,0].shape[0]
-			imgwidth = val_images[locs[i],:,:,0].shape[1]
+			imgheight = images[locs[i],:,:,0].shape[0]
+			imgwidth = images[locs[i],:,:,0].shape[1]
 
 			#add a box with colour matching that of the scatter plot
 			rectwidth = 10
@@ -307,10 +317,10 @@ def cluster_encoder_output(encoder_output, val_images, algorithm = 'k-means', us
 	        	}
 			plt.title(f'Validation image cluster {lab} number {i}', fontdict = font)
 
-			plt.savefig(f'{encoder_clustering_output_loc}/Val_image_{algorithm}_c{lab}_idx{i}.png', bbox_inches = 'tight', dpi = 200)
+			plt.savefig(f'{imgplotloc}/Val_image_{algorithm}_c{lab}_idx{i}.png', bbox_inches = 'tight', dpi = 200)
 			plt.close()
 
-def plot_autoencoder_output(val_image_array, autoencoder_output):
+def plot_autoencoder_output(val_image_array, autoencoder_output, autoencoder_imgs_output_loc):
 	for i in tqdm(range(autoencoder_output.shape[0])):
 		fig = plt.figure(figsize = (12, 12))
 
@@ -327,36 +337,47 @@ def plot_autoencoder_output(val_image_array, autoencoder_output):
 		plt.savefig(f'{autoencoder_imgs_output_loc}/Autoencoder_output_{i}.png', bbox_inches = 'tight', dpi = 200)
 		plt.close()
 
-def load_single_img(current_label):
-	current_filename = current_label["filename"]
-	current_bbox = np.array([current_label["bbox"]])
-
-	current_filepath = os.path.join(train_dir, current_filename)
-	current_image_pil = Image.open(current_filepath)
+def load_single_img(fname):
+	"""
+	Load a single image using a filename (includes full path)
+	"""
+	current_image_pil = Image.open(fname)
 	current_image_pil = current_image_pil.resize(imgsize, resample=Image.BICUBIC)
 	current_image_arr = np.array(current_image_pil, dtype=float)/256.
 	current_image_pil.close()
 
-	return current_bbox, current_image_arr
+	#if the image is an RGB image, collapse the RGB axis
+	if len(current_image_arr.shape) > 2:
+		current_image_arr = np.mean(current_image_arr, axis = 2)
 
-def load_images(labs):
+	return current_image_arr
+
+def load_images(fnames):
 	"""
 	Load a set of images
 	"""
 	image_array = []
-	for label in tqdm(labs):
-		current_label, current_image_arr = load_single_img(label)
+
+	for fname in tqdm(fnames):
+		current_image_arr = load_single_img(fname)
 		image_array.append(np.expand_dims(current_image_arr, 2))
+
 	return np.array(image_array)
 
 def load_data(n_images, n_val_set, load_train_images = True, random_shuffle = True):
 	"""
 	Loads the desired data
 	"""
+	#load labels
 	labels = create_json()
+	#extract filenames from labels
+	fnames = []
+	for lab in labels:
+		fnames.append(f'{dataset_dir}/images/train/{lab["filename"]}')
+
 	#shuffle labels (so also the images itself)
 	if random_shuffle:
-		np.random.shuffle(labels)
+		np.random.shuffle(fnames)
 
 	if n_images + n_val_set > 12000:
 		print('WARNING: reducing train set size')
@@ -364,15 +385,15 @@ def load_data(n_images, n_val_set, load_train_images = True, random_shuffle = Tr
 
 	#load validation set which will be used to generate predictions at
 	#the end of training
-	val_images = load_images(labels[n_images:n_images+n_val_set])
+	val_images = load_images(fnames[n_images:n_images+n_val_set])
 
 	if load_train_images:
 		#load train set
-		train_images = load_images(labels[:n_images])
+		train_images = load_images(fnames[:n_images])
 
-		return train_images, val_images, labels
+		return train_images, val_images, fnames
 	else:
-		return val_images, labels
+		return val_images, fnames
 
 def train_model(n_images, n_val_set, autoencoder):
 	train_images, val_images, labels = load_data(n_images, n_val_set, load_train_images = True)
@@ -399,11 +420,11 @@ def train_or_load_model(n_iTritaniummages, n_val_set, loadmodel = False, load_va
 		autoencoder = saveLoadModel(f'{output_loc}/autoencoder.h5', save = False, load = True)
 		print (" Successfully loaded architecture from file!")
 
-		encoder.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
-		autoencoder.compile(optimizer=keras.optimizers.Adam(lr=0.001), loss='mse')
+		encoder.compile(optimizer = keras.optimizers.Adam(lr = 0.001), loss = 'mse')
+		autoencoder.compile(optimizer = keras.optimizers.Adam(lr = 0.001), loss = 'mse')
 
 		if load_val_imgs:
-			val_images, labels = load_data(n_images, n_val_set, load_train_images = False, random_shuffle = False)
+			val_images, fnames = load_data(n_images, n_val_set, load_train_images = False, random_shuffle = False)
 		else:
 			val_images = np.array([])
 	else:
@@ -411,7 +432,7 @@ def train_or_load_model(n_iTritaniummages, n_val_set, loadmodel = False, load_va
 		encoder, autoencoder = create_model()
 		print (" Created new model")
 
-		history, train_images, val_images, labels = train_model(n_images - n_val_set, n_val_set, autoencoder)
+		history, train_images, val_images, fnames = train_model(n_images - n_val_set, n_val_set, autoencoder)
 		train_loss = history.history['loss']
 		test_loss = history.history['val_loss']
 
@@ -423,52 +444,107 @@ def train_or_load_model(n_iTritaniummages, n_val_set, loadmodel = False, load_va
 		#plot loss
 		plot_save_losses(train_loss, test_loss)
 
-	return encoder, autoencoder, val_images, labels
+	return encoder, autoencoder, val_images, fnames
 
-
-def run_predictions(encoder, autoencoder, val_images, labels, load_val_imgs = True):
+#
+def run_predictions(encoder, autoencoder, val_images, fnames, output_loc, encoder_clustering_output_loc, autoencoder_imgs_output_loc, load_val_imgs = True):
 	if load_val_imgs:
 		encoder_output = encoder.predict(val_images)
 
 		#save output to file if we want to analyse it later
-		np.save(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy', encoder_output)
-		np.save(f'{encoder_clustering_output_loc}/image_labels_{imageset}.npy', np.array(labels))
+		np.save(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy', np.array([fnames, encoder_output]).T)
 	else:
-		encoder_output = np.load(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy')
-		labels = np.load(f'{encoder_clustering_output_loc}/image_labels_{imageset}.npy')
+		data = np.load(f'{encoder_clustering_output_loc}/encoder_output_{imageset}.npy')
+		fnames = data[:,0]
+		encoder_output = data[:,1]
 
-	cluster_encoder_output(encoder_output, val_images, algorithm = 'hierarch', use_tSNE = False)
+		del data
+
+	cluster_encoder_output(encoder_output, all_imgs, output_loc, encoder_clustering_output_loc, autoencoder_imgs_output_loc, fnames, algorithm = 'hierarch', use_tSNE = False)
 
 	#also plot autoencoder output to see the compression it applies
 	np.random.shuffle(val_images)
-	plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]))
+	plot_autoencoder_output(val_images, autoencoder.predict(val_images[:20]), autoencoder_imgs_output_loc)
+
+def develop_autoencoder():
+	"""
+	This code is used to develop the autoencoder and the clustering
+	"""
+	#### Tweakable parameters
+	version = 2
+	#number of images for training (10% will be split off for the test set)
+	n_images = 0
+	#number of images for validation
+	n_val_set = 12000
+
+	imageset = 'test'
+
+	loadmodel = True
+	#True: load all validation images. False: load only the encoder output
+	load_val_imgs = True
 
 
-#### Tweakable parameters
-version = 2
-#number of images for training (10% will be split off for the test set)
-n_images = 0
-#number of images for validation
-n_val_set = 12000
-
-imageset = 'test'
-
-loadmodel = True
-#True: load all validation images. False: load only the encoder output
-load_val_imgs = True
+	output_loc = f'autoencoder_{version}'
+	#check if the output folder is present and if not, make one
+	checkFolders([output_loc])
+	#make folders in the output loc
+	autoencoder_imgs_output_loc = f'{output_loc}/Autoencoder_imgs'
+	encoder_clustering_output_loc = f'{output_loc}/Encoder_clustering'
+	checkFolders([autoencoder_imgs_output_loc, encoder_clustering_output_loc])
 
 
-output_loc = f'autoencoder_{version}'
-#check if the output folder is present and if not, make one
-checkFolders([output_loc])
-#make folders in the output loc
-autoencoder_imgs_output_loc = f'{output_loc}/Autoencoder_imgs'
-encoder_clustering_output_loc = f'{output_loc}/Encoder_clustering'
-checkFolders([autoencoder_imgs_output_loc, encoder_clustering_output_loc])
+	#### Train the network
+	encoder, autoencoder, val_images, fnames = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel, load_val_imgs = load_val_imgs)
 
+	#### now make some predictions
+	run_predictions(encoder, autoencoder, val_images, fnames, output_loc, encoder_clustering_output_loc, autoencoder_imgs_output_loc, load_val_imgs = load_val_imgs)
 
-#### Train the network
-encoder, autoencoder, val_images, labels = train_or_load_model(n_images, n_val_set, loadmodel = loadmodel, load_val_imgs = load_val_imgs)
+def cluster_all_sets():
+	"""
+	Cluster the train, test and real_test set and save the output labels to
+	a file. These labels will then be used for the three networks
+	"""
 
-#### now make some predictions
-run_predictions(encoder, autoencoder, val_images, labels, load_val_imgs = load_val_imgs)
+	#version of the autoencoder to use
+	version = 2
+
+	#make a folder where the labels are saved
+	labelsave_loc = './clustering_labels'
+	checkFolders([labelsave_loc])
+
+	encoder_loc = f'autoencoder_{version}'
+
+	#load and compile the encoder model
+	encoder = saveLoadModel(f'{encoder_loc}/encoder.h5', save = False, load = True)
+	encoder.compile(optimizer = keras.optimizers.Adam(lr = 0.001), loss = 'mse')
+
+	#extract the filenames
+	fnames = []
+	for setname in ['train', 'test', 'real', 'real_test']:
+		tqdm.write(f'Loading {setname}')
+		with open(os.path.join(dataset_dir, f'{setname}.json'), 'r') as jsonfile:
+			labs = json.load(jsonfile)
+
+		#extract the filenames
+		names = []
+		for lab in labs:
+			names.append(f'{dataset_dir}/images/{setname}/{lab["filename"]}')
+
+		fnames.extend(names)
+
+	fnames = np.array(fnames)
+	print('Number of fnames:', fnames.shape)
+
+	#shuffle fnames
+	np.random.shuffle(fnames)
+
+	#load the images
+	all_imgs = load_images(fnames)
+
+	#do dim reduction with encoder
+	encoder_output = encoder.predict(all_imgs)
+
+	#do clustering
+	cluster_encoder_output(encoder_output, all_imgs, labelsave_loc, labelsave_loc, labelsave_loc, fnames, algorithm = 'hierarch', use_tSNE = False)
+
+cluster_all_sets()

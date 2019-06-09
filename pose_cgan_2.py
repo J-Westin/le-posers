@@ -136,7 +136,7 @@ class DiscriminatorDataGenerator(Sequence):
 #		if self.shuffle:
 			np.random.shuffle(self.indexes)
 
-	
+
 	def __data_generation(self, list_IDs_temp):
 
 		""" Generates data containing batch_size samples """
@@ -145,8 +145,8 @@ class DiscriminatorDataGenerator(Sequence):
 		X = np.empty((self.batch_size, *self.dim))
 		y = np.empty((self.batch_size, 1), dtype=float)
 		C = np.empty((self.batch_size, 7), dtype=float)
-		
-		
+
+
 
 		# Generate data
 		for i, ID in enumerate(list_IDs_temp):
@@ -155,13 +155,13 @@ class DiscriminatorDataGenerator(Sequence):
 				img_path = os.path.join(self.image_root, ID)
 				img = Image.open(img_path)
 				q, r = self.labels[ID]['q'], self.labels[ID]['r']
-				
-				
+
+
 				img = img.resize((self.dim[1],self.dim[0]))
 				y[i] = np.random.rand()*0.1+0.9
 #				y[i] = 1
-	
-	
+
+
 				# flatten and output
 #				np.expand_dims(keras_image.img_to_array(img)[...,0]/255.,2)
 				x = np.expand_dims((np.clip(keras_image.img_to_array(img)[...,0],self.clip_range[0],self.clip_range[1])-self.clip_range[0])/(-self.clip_range[0]+self.clip_range[1]),2)
@@ -181,19 +181,19 @@ class DiscriminatorDataGenerator(Sequence):
 #				print(np.asarray(noise).shape)
 #				print(pose.shape)
 				ingen = [noise,pose]
-				
-				x = self.generator.predict(ingen)	
+
+				x = self.generator.predict(ingen)
 #				y[i] = np.random.rand()*0.1
 #				y[i] = 0
 				y[i] = 1
-				
+
 
 			X[i,] = x
 			C[i,] = pose
-			
+
 		Xf=[X,C]
 		return Xf, y
-	
+
 class GeneratorDataGenerator(Sequence):
 
 	"""
@@ -265,7 +265,7 @@ class GeneratorDataGenerator(Sequence):
 		if self.shuffle:
 			np.random.shuffle(self.indexes)
 
-	
+
 	def __data_generation(self, list_IDs_temp):
 
 		""" Generates data containing batch_size samples """
@@ -290,22 +290,22 @@ class GeneratorDataGenerator(Sequence):
 			pose = np.concatenate([q, r])
 			C[i,] = pose
 			y[i] = 0
-			
+
 		Xf=[X,C]
 		return Xf, y
 
 class CGAN(object):
 
 	def __init__(self, batch_size, epochs, version, load_model, reps = 4):
-		
+
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
 		self.version = version
 		self.load_model = load_model
-		
+
 		self.clip_range=(0,255)
-		
+
 		self.cluster = 2
 
 		self.dim = (160, 256,1)
@@ -325,7 +325,7 @@ class CGAN(object):
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
-		self.dataset_loc = 'speed/speed/'
+		self.dataset_loc = '/data/s1530194/speed'
 		self.image_root = os.path.join(self.dataset_loc, 'images', 'train')
 #		self.loss_g=keras.losses.mean_squared_error
 #		self.loss_g=keras.losses.logcosh
@@ -335,12 +335,17 @@ class CGAN(object):
 		self.loss_d=keras.losses.binary_crossentropy
 
 
+		#this folder should already exist
+		self.autoencoder_labelloc = 'autoencoder_2/Encoder_clustering'
+
+
 		self.output_loc = f'./Version_CGAN_{self.version}/'
 		self.model_summary_name = f'model_summlisary_v{self.version}.txt'
+		self.cgan_imgoutput = './cgantest'
 
 		#### initialize some stuff
 		#check if folders are present and make them if necessary
-		checkFolders([self.output_loc])
+		checkFolders([self.output_loc, self.cgan_imgoutput])
 
 		self.gen_output = OutputResults(self)
 
@@ -399,7 +404,7 @@ class CGAN(object):
 							decay = self.learning_rate_decay,
 							beta_1=0.5),
 					metrics = ['accuracy'])
-					
+
 		plot_model(self.generator, to_file = f'{self.output_loc}generator_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
 		plot_model(self.discriminator, to_file = f'{self.output_loc}discriminator_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
 		plot_model(self.total, to_file = f'{self.output_loc}total_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
@@ -413,8 +418,8 @@ class CGAN(object):
 			label_list = json.load(f)
 
 #		label_list = label_list[:6000]
-		labels_autoenc = np.load('autoencoder/image_labels.npy')
-		clusters_autoenc = np.load('autoencoder/hierarch_cluster_labels.npy')
+		labels_autoenc = np.load(f'{self.autoencoder_labelloc}/image_labels.npy')
+		clusters_autoenc = np.load(f'{self.autoencoder_labelloc}/hierarch_cluster_labels.npy')
 		labels_autoenc = labels_autoenc[clusters_autoenc==self.cluster]
 		labels_sel=np.array([x['filename'] for x in labels_autoenc])
 
@@ -435,7 +440,7 @@ class CGAN(object):
 				**self.params)
 
 	def train_cgan(self):
-		
+
 		print("Training initial discriminator")
 #		tensorboard = keras.callbacks.TensorBoard(log_dir=f'{self.output_loc}/logs', write_grads=True)
 #		callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'), tensorboard]
@@ -463,34 +468,34 @@ class CGAN(object):
 				f'{self.output_loc}discriminator_v{self.version}.h5',
 				model = self.discriminator,
 				save = True)
-		
+
 		train_loss_discriminator = history.history['loss']
 #		test_loss_discriminator = history.history['val_loss']
 
 		print('Training losses: ', history.history['loss'])
 #		print('Validation losses: ', history.history['val_loss'])
-		
+
 #		train_loss_discriminator = []
 		test_loss_discriminator = [1]
-		
-		
+
+
 		#save and plot losses
 #		self.gen_output.plot_save_losses(
 #				train_loss_discriminator,
 #				test_loss_discriminator)
-		
-		
-	
+
+
+
 		train_loss_total = []
 		test_loss_total = [1]
 		rep_g = 0
 		rep_d = 1
 #		self.training_discriminator.r_factor = 180
 #		self.training_discriminator.r_factor = 256
-		
+
 		# Train alternatively generator and discriminator
 		for rep in range(self.reps):
-			
+
 #			K.set_value(self.total.optimizer.lr, self.learning_rate_g)
 #			K.set_value(self.discriminator.optimizer.lr, self.learning_rate_d)
 			# Train generator
@@ -505,7 +510,7 @@ class CGAN(object):
 			rep_g += 1
 			self.training_generator.init = False
 #			self.validation_generator.init = False
-				
+
 			self.discriminator.trainable = False
 			history = self.total.fit_generator(
 					self.training_generator,
@@ -513,8 +518,8 @@ class CGAN(object):
 #					validation_data=self.validation_generator,
 					callbacks=callbacks_g)
 			#save the model
-			
-			
+
+
 			train_loss_total.extend(history.history['loss'])
 			history = self.total.fit_generator(
 					self.training_generator,
@@ -522,21 +527,21 @@ class CGAN(object):
 #					validation_data=self.validation_generator,
 					callbacks=callbacks_g)
 			#save the model
-			
-			
+
+
 			train_loss_total.extend(history.history['loss'])
 #			test_loss_total.extend(history.history['val_loss'])
-	
+
 #				print('Training losses: ', history.history['loss'])
 #				print('Validation losses: ', history.history['val_loss'])
-			
+
 			#save and plot losses
 			self.gen_output.plot_save_losses_gan(
 					train_loss_total,
 					train_loss_discriminator)
-#			
+#
 			#save the model
-			
+
 			if rep%100==0:
 				self.gen_output.saveLoadModel(
 						f'{self.output_loc}total_v{self.version}.h5',
@@ -551,7 +556,7 @@ class CGAN(object):
 						model = self.discriminator,
 						save = True)
 				self.generate_examples(10)
-			
+
 			if (rep is not self.reps-1):
 				rep_g = 0
 				rep_d += 1
@@ -567,14 +572,14 @@ class CGAN(object):
 #						validation_data=self.validation_discriminator,
 						callbacks=callbacks_d)
 				#save the model
-				
-				
+
+
 				train_loss_discriminator.extend(history.history['loss'])
 #				test_loss_discriminator.extend(history.history['val_loss'])
-		
+
 #				print('Training losses: ', history.history['loss'])
 #				print('Validation losses: ', history.history['val_loss'])
-				
+
 				#save and plot losses
 #				self.gen_output.plot_save_losses(
 #						train_loss_discriminator,
@@ -587,7 +592,7 @@ class CGAN(object):
 
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f)
-			
+
 	'''
 	def generator_loss(self,y_pred,y_real):
 		discriminator = tf.keras.estimator.model_to_estimator(
@@ -597,7 +602,7 @@ class CGAN(object):
 		print([y_pred[0],y_pred[1]])
 		return y_real-self.discriminator.predict([y_pred[:,:,],y_pred[1]],steps = 1)
 	'''
-		
+
 	def generate_examples(self, examples):
 		# Generate and save images
 		for ID in range(examples):
@@ -614,17 +619,17 @@ class CGAN(object):
 			pose = np.concatenate([q, r]).reshape(1,7)
 			x = ((self.generator.predict([noise,pose]))*(self.clip_range[1]-self.clip_range[0])+self.clip_range[0]).reshape(self.dim[0],self.dim[1])
 #			print(np.amax(x))
-			plt.imsave(f'cgantest/TestOutput_{ID}.png', x, cmap = 'gray', dpi = 300, vmin = 0, vmax = 255)
-			
-			with open(f'cgantest/TestOutput_{ID}.txt', "w") as myfile:
+			plt.imsave(f'{self.cgan_imgoutput}/TestOutput_{ID}.png', x, cmap = 'gray', dpi = 300, vmin = 0, vmax = 255)
+
+			with open(f'{self.cgan_imgoutput}/TestOutput_{ID}.txt', "w") as myfile:
 				myfile.write(str(pose))
-				
+
 			ID_e='img014933.jpg'
 			img_path = os.path.join(self.image_root, ID_e)
 			img = Image.open(img_path)
 			img = img.resize((self.dim[1],self.dim[0]))
 			img_a = keras_image.img_to_array(img)
-			
+
 			hist = cv2.calcHist([img_a], [0], None, [256], [0, 256])
 			plt.figure()
 			plt.title("Grayscale Histogram")
@@ -632,8 +637,8 @@ class CGAN(object):
 			plt.ylabel("# of Pixels")
 			plt.plot(hist)
 #			plt.xlim([0, 50])
-			plt.savefig(f'cgantest/{ID_e}_hist.png')
-				
+			plt.savefig(f'{self.cgan_imgoutput}/{ID_e}_hist.png')
+
 	def model_total(self):
 		self.discriminator.trainable=False
 		inputnoise = keras.layers.Input(shape=(self.latent_dim,), name="total_i1")
@@ -641,17 +646,17 @@ class CGAN(object):
 		generator = self.generator([inputnoise,inputpose])
 		discriminator =  self.discriminator([generator, inputpose])
 		model_final =  keras.models.Model(inputs = [inputnoise,inputpose], outputs=discriminator)
-		
+
 		return model_final
-	
-	
+
+
 
 
 def main(batch_size, epochs, version, load_model):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
-	
+
 	#initialize parameters, data loading and the network architecture
 	cgan = CGAN(batch_size, epochs, version, load_model, reps = 2000000)
 
@@ -665,8 +670,8 @@ def main(batch_size, epochs, version, load_model):
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
 parser.add_argument('--epochs', help='Number of epochs for training.', default = 1)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 8)
-parser.add_argument('--version', help='version of the neural network.', default = 21)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
+parser.add_argument('--version', help='version of the neural network.', default = 22)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 args = parser.parse_args()
 
