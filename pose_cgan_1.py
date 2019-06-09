@@ -28,7 +28,7 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from cgan_architecture_5 import model_generator, model_discriminator
+from cgan_architectures.cgan_architecture_5 import model_generator, model_discriminator
 
 from tensorflow.python import debug as tf_debug
 
@@ -116,7 +116,7 @@ class DiscriminatorDataGenerator(Sequence):
 		if self.shuffle:
 			np.random.shuffle(self.indexes)
 
-	
+
 	def __data_generation(self, list_IDs_temp):
 
 		""" Generates data containing batch_size samples """
@@ -125,8 +125,8 @@ class DiscriminatorDataGenerator(Sequence):
 		X = np.empty((self.batch_size, *self.dim))
 		y = np.empty((self.batch_size, 1), dtype=float)
 		C = np.empty((self.batch_size, 7), dtype=float)
-		
-		
+
+
 
 		# Generate data
 		for i, ID in enumerate(list_IDs_temp):
@@ -135,13 +135,13 @@ class DiscriminatorDataGenerator(Sequence):
 				img_path = os.path.join(self.image_root, ID)
 				img = Image.open(img_path)
 				q, r = self.labels[ID]['q'], self.labels[ID]['r']
-				
-				
+
+
 				img = img.resize((self.dim[1],self.dim[0]))
 				y[i] = np.random.rand()*0.1+0.9
 #				y[i] = 1
-	
-	
+
+
 				# flatten and output
 				x = np.expand_dims(keras_image.img_to_array(img)[...,0]/255.,2)
 				pose = np.concatenate([q, r])
@@ -159,18 +159,18 @@ class DiscriminatorDataGenerator(Sequence):
 #				print(np.asarray(noise).shape)
 #				print(pose.shape)
 				ingen = [noise,pose]
-				
-				x = self.generator.predict(ingen)	
+
+				x = self.generator.predict(ingen)
 #				y[i] = np.random.rand()*0.1
 				y[i] = 0
-				
+
 
 			X[i,] = x
 			C[i,] = pose
-			
+
 		Xf=[X,C]
 		return Xf, y
-	
+
 class GeneratorDataGenerator(Sequence):
 
 	"""
@@ -232,7 +232,7 @@ class GeneratorDataGenerator(Sequence):
 		if self.shuffle:
 			np.random.shuffle(self.indexes)
 
-	
+
 	def __data_generation(self, list_IDs_temp):
 
 		""" Generates data containing batch_size samples """
@@ -256,7 +256,7 @@ class GeneratorDataGenerator(Sequence):
 			pose = np.concatenate([q, r])
 			C[i,] = pose
 			y[i] = 0
-			
+
 		Xf=[X,C]
 		return Xf, y
 
@@ -353,7 +353,7 @@ class CGAN(object):
 							decay = self.learning_rate_decay,
 							beta_1=0.5),
 					metrics = ['accuracy'])
-					
+
 		plot_model(self.generator, to_file = f'{self.output_loc}generator_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
 		plot_model(self.discriminator, to_file = f'{self.output_loc}discriminator_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
 		plot_model(self.total, to_file = f'{self.output_loc}total_arch_v{self.version}.png', show_shapes = True, show_layer_names = True)
@@ -391,7 +391,7 @@ class CGAN(object):
 				**self.params)
 
 	def train_cgan(self):
-		
+
 		print("Training initial discriminator")
 #		tensorboard = keras.callbacks.TensorBoard(log_dir=f'{self.output_loc}/logs', write_grads=True)
 #		callbacks=[keras.callbacks.ProgbarLogger(count_mode='steps'), tensorboard]
@@ -418,32 +418,32 @@ class CGAN(object):
 				f'{self.output_loc}discriminator_v{self.version}.h5',
 				model = self.discriminator,
 				save = True)
-		
+
 		train_loss_discriminator = history.history['loss']
 		test_loss_discriminator = history.history['val_loss']
 
 		print('Training losses: ', history.history['loss'])
 		print('Validation losses: ', history.history['val_loss'])
-		
+
 		#save and plot losses
 		self.gen_output.plot_save_losses(
 				train_loss_discriminator,
 				test_loss_discriminator)
-		
-		
+
+
 #		train_loss_discriminator = []
 #		test_loss_discriminator = []
-	
+
 		train_loss_total = []
 		test_loss_total = []
 		rep_g = 0
 		rep_d = 1
 #		self.training_discriminator.r_factor = 180
 #		self.training_discriminator.r_factor = 256
-		
+
 		# Train alternatively generator and discriminator
 		for rep in range(self.reps):
-			
+
 			K.set_value(self.total.optimizer.lr, self.learning_rate_g)
 			K.set_value(self.discriminator.optimizer.lr, self.learning_rate_d)
 			# Train generator
@@ -458,7 +458,7 @@ class CGAN(object):
 			rep_g += 1
 			self.training_generator.init = False
 			self.validation_generator.init = False
-				
+
 			self.discriminator.trainable = False
 			history = self.total.fit_generator(
 					self.training_generator,
@@ -470,26 +470,26 @@ class CGAN(object):
 					f'{self.output_loc}total_v{self.version}.h5',
 					model = self.total,
 					save = True)
-			
+
 			train_loss_total.extend(history.history['loss'])
 			test_loss_total.extend(history.history['val_loss'])
-	
+
 #				print('Training losses: ', history.history['loss'])
 #				print('Validation losses: ', history.history['val_loss'])
-			
+
 			#save and plot losses
 			self.gen_output.plot_save_losses(
 					train_loss_total,
 					test_loss_total)
-			
+
 			#save the model
 			self.gen_output.saveLoadModel(
 					f'{self.output_loc}generator_v{self.version}.h5',
 					model = self.generator,
 					save = True)
-			
+
 			self.generate_examples(10)
-			
+
 			if (rep is not self.reps-1):
 				rep_g = 0
 				rep_d += 1
@@ -509,13 +509,13 @@ class CGAN(object):
 						f'{self.output_loc}discriminator_v{self.version}.h5',
 						model = self.discriminator,
 						save = True)
-				
+
 				train_loss_discriminator.extend(history.history['loss'])
 				test_loss_discriminator.extend(history.history['val_loss'])
-		
+
 #				print('Training losses: ', history.history['loss'])
 #				print('Validation losses: ', history.history['val_loss'])
-				
+
 				#save and plot losses
 				self.gen_output.plot_save_losses(
 						train_loss_discriminator,
@@ -528,7 +528,7 @@ class CGAN(object):
 
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f)
-			
+
 	'''
 	def generator_loss(self,y_pred,y_real):
 		discriminator = tf.keras.estimator.model_to_estimator(
@@ -538,7 +538,7 @@ class CGAN(object):
 		print([y_pred[0],y_pred[1]])
 		return y_real-self.discriminator.predict([y_pred[:,:,],y_pred[1]],steps = 1)
 	'''
-		
+
 	def generate_examples(self, examples):
 		# Generate and save images
 		for ID in range(examples):
@@ -555,7 +555,7 @@ class CGAN(object):
 			plt.imsave(f'cgantest/TestOutput_{ID}.png', x, cmap = 'gray', dpi = 300)
 			with open(f'cgantest/TestOutput_{ID}.txt', "w") as myfile:
 				myfile.write(str(pose))
-				
+
 	def model_total(self):
 		self.discriminator.trainable=False
 		inputnoise = keras.layers.Input(shape=(self.latent_dim,), name="total_i1")
@@ -563,17 +563,17 @@ class CGAN(object):
 		generator = self.generator([inputnoise,inputpose])
 		discriminator =  self.discriminator([generator, inputpose])
 		model_final =  keras.models.Model(inputs = [inputnoise,inputpose], outputs=discriminator)
-		
+
 		return model_final
-	
-	
+
+
 
 
 def main(batch_size, epochs, version, load_model):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
-	
+
 	#initialize parameters, data loading and the network architecture
 	cgan = CGAN(batch_size, epochs, version, load_model, reps = 2000)
 

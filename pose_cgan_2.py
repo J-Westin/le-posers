@@ -29,7 +29,7 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from cgan_architecture_10 import model_generator, model_discriminator
+from cgan_architectures.cgan_architecture_10 import model_generator, model_discriminator
 
 from tensorflow.python import debug as tf_debug
 
