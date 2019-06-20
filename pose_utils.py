@@ -508,7 +508,7 @@ class OutputResults(object):
 		Save and plot the losses
 		"""
 		#save
-		np.savetxt(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.txt', np.array([train_loss, test_loss]), header = 'train_loss test_loss')
+		np.savetxt(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}_c{self.pose_nn.cluster}_o{self.pose_nn.output}.txt', np.array([train_loss, test_loss]), header = 'train_loss test_loss')
 
 		#plot
 		plt.plot(np.arange(1, len(train_loss)+1), train_loss, label = 'Train loss')
@@ -528,7 +528,7 @@ class OutputResults(object):
 		plt.legend(loc = 'best')
 		plt.grid(alpha = 0.4)
 
-		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.png', dpi = 300, bbox_inches = 'tight')
+		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}_c{self.pose_nn.cluster}_o{self.pose_nn.output}.png', dpi = 300, bbox_inches = 'tight')
 		plt.close()
 		
 	def plot_save_losses_gan(self, train_loss, test_loss):
