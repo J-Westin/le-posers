@@ -293,7 +293,7 @@ if has_tf:
 		def __init__(self, preprocessor, label_list, speed_root, labels_sel = None,
 					batch_size=32, dim=(224, 224), n_channels=3,
 					shuffle=True, randomRotations = False, seed = 1,
-					crop = False, cropper_model = None):
+					crop = False, cropper_model = None, output = 'BOTH'):
 
 			# loading dataset
 			self.image_root = os.path.join(speed_root, 'images', 'train')
@@ -315,6 +315,7 @@ if has_tf:
 			self.seed = seed
 			self.crop = crop
 			self.cropper_model = cropper_model
+			self.output = output
 			self.on_epoch_end()
 
 		def __len__(self):
@@ -393,7 +394,7 @@ if has_tf:
 
 			return img, q, r
 
-		def crop_image(self, img, bbox_imgshape = (240, 150)):
+		def crop_image(self, img, bbox_imgshape = (256, 160)):
 			"""
 			Crops image in-place and returns coordinates of cropping
 			bounding box which is an input for the neural network
@@ -436,7 +437,13 @@ if has_tf:
 
 			# Initialization
 			X = np.empty((self.batch_size, *self.dim, self.n_channels))
-			y = np.empty((self.batch_size, 7), dtype=float)
+			if self.output=='BOTH':
+				y = np.empty((self.batch_size, 7), dtype=float)
+			elif self.output=='PSTN':
+				y = np.empty((self.batch_size, 3), dtype=float)
+			elif self.output=='ORTN':
+				y = np.empty((self.batch_size, 4), dtype=float)
+			
 			if self.crop:
 				C = np.empty((self.batch_size, 4))
 
@@ -462,7 +469,12 @@ if has_tf:
 				x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
 
 				X[i,] = x
-				y[i] = np.concatenate([q, r])
+				if self.output=='BOTH':
+					y[i] = np.concatenate([q, r])
+				elif self.output=='PSTN':
+					y[i] = r
+				elif self.output=='ORTN':
+					y[i] = q
 
 
 				if self.crop:

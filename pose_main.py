@@ -1,3 +1,15 @@
+'''
+https://machinelearningmastery.com/save-load-keras-deep-learning-models/
+
+Remove last layer of model with 
+model.layers.pop()
+
+Freeze layers
+for layer in model.layers:
+    layer.trainable = False
+'''
+
+
 import json
 
 import matplotlib
@@ -6,6 +18,7 @@ import matplotlib.pyplot as plt
 
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
+from keras.optimizers import Adam
 import tensorflow as tf
 import keras
 from sklearn import model_selection
@@ -22,7 +35,7 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_24 import create_model
+from pose_architecture_34 import create_model
 
 
 """
@@ -32,7 +45,7 @@ from pose_architecture_24 import create_model
 
 class POSE_NN(object):
 
-	def __init__(self, batch_size, epochs, version, load_model, loss = "MSE", use_early_stop = False, crop = True, cluster = None):
+	def __init__(self, batch_size, epochs, version, load_model, loss = "MSE", use_early_stop = False, crop = True, cluster = None, output = 'BOTH'):
 		#### tweakable parameters
 		self.batch_size = batch_size
 		self.epochs = epochs
@@ -42,6 +55,7 @@ class POSE_NN(object):
 		self.use_early_stop = use_early_stop
 		self.crop = crop
 		self.cluster = cluster
+		self.output = output
 
 		self.imgsize = 224
 		#size of the test set as a fraction of the total amount of data
@@ -50,15 +64,15 @@ class POSE_NN(object):
 		#dropout percentage
 		self.dropout = 0.3
 
-		self.learning_rate = 0.001
+		self.learning_rate = 0.0001
+		self.learning_rate_decay = 0.0
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
 		self.dataset_loc = '/data/s1530194/speed'
 
-
 		self.output_loc = f'./Version_{self.version}/'
-		self.model_summary_name = f'model_summary_v{self.version}.txt'
+		self.model_summary_name = f'model_summary_v{self.version}_c{self.cluster}_o{self.output}.txt'
 
 		#### initialize some stuff
 		#check if folders are present and make them if necessary
@@ -70,28 +84,84 @@ class POSE_NN(object):
 		# Load cropper if selected
 		if self.crop:
 			# load json and create model
-			loaded_model = keras.models.load_model('bbox_model.h5')
+			loaded_model = keras.models.load_model('cropping_network_development/croppermodel8_c'+str(self.cluster)+'.h5')
 			# Compile model for evaluating only
 			loaded_model._make_predict_function()
 #			loaded_model.compile(optimizer='Adam',loss='mse')
 			self.cropper_model = loaded_model
-
-		self.params = {'dim': (self.imgsize, self.imgsize),
-				  'batch_size': self.batch_size,
-				  'n_channels': 3,
-				  'shuffle': True,
-				  'randomRotations': True,
-				  'seed': 1,
-				  'crop': self.crop,
-				  'cropper_model': self.cropper_model}
+		
+			self.params = {'dim': (self.imgsize, self.imgsize),
+					  'batch_size': self.batch_size,
+					  'n_channels': 3,
+					  'shuffle': True,
+					  'randomRotations': False,
+					  'seed': 1,
+					  'crop': self.crop,
+					  'cropper_model': self.cropper_model,
+					  'output': self.output}
+			
+		else:
+			self.params = {'dim': (self.imgsize, self.imgsize),
+					  'batch_size': self.batch_size,
+					  'n_channels': 3,
+					  'shuffle': True,
+					  'randomRotations': False,
+					  'seed': 1,
+					  'crop': self.crop,
+					  'output': self.output}
 
 		self.dataloader()
 		if self.load_model < 0:
 			print(self.learning_rate)
-			self.model = create_model(self)
+			model_basic = create_model(self)
+			# This will result in an error if the wrong architectire is used
+			if self.output=='PSTN':
+				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
+				model =  model_basic(img_in)
+				model_rx = keras.layers.Dense(1, activation = 'linear')(model)
+				model_ry = keras.layers.Dense(1, activation = 'linear')(model)
+				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
+				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
+				model_final =  keras.models.Model(inputs = img_in, outputs=model_r)
+				model_final.compile(loss = self.loss_function, 
+							optimizer = Adam(lr = self.learning_rate,
+							decay = self.learning_rate_decay),
+							metrics = [self.metrics_function])
+				self.model = model_final
+			elif self.output=='ORTN':
+				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
+				crop_in = keras.layers.Input(shape=(4,))
+				model =  model_basic([img_in,crop_in])
+				model = keras.layers.Dense(4, activation = 'linear')(model)
+				model = keras.layers.Lambda(tf.nn.l2_normalize )(model)
+				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=model)
+				model_final.compile(loss = self.loss_function, 
+							optimizer = Adam(lr = self.learning_rate,
+							decay = self.learning_rate_decay),
+							metrics = [self.metrics_function])
+				self.model = model_final
+			elif self.output=='BOTH':
+				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
+				crop_in = keras.layers.Input(shape=(4,))
+				model =  model_basic([img_in,crop_in])
+				model_rx = keras.layers.Dense(1, activation = 'linear')(model)
+				model_ry = keras.layers.Dense(1, activation = 'linear')(model)
+				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
+				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
+				model_q = keras.layers.Dense(4, activation = 'tanh')(model)
+				model_q = keras.layers.Lambda(tf.nn.l2_normalize )(model_q)
+				predictions = keras.layers.concatenate([model_q,model_r])
+				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=predictions)
+				model_final.compile(loss = self.loss_function, 
+							optimizer = Adam(lr = self.learning_rate,
+							decay = self.learning_rate_decay),
+							metrics = [self.metrics_function])
+				self.model = model_final
+
+			
 		else:
 			print(self.load_model)
-			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}.h5', load=True)
+			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}_c{self.cluster}_o{self.output}.h5', load=True)
 
 
 	def evaluate(self, model, dataset, append_submission, dataset_root):
@@ -170,10 +240,12 @@ class POSE_NN(object):
 			self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
 		else:
 			#		label_list = label_list[:6000]
-			labels_autoenc = np.load('autoencoder/image_labels.npy')
-			clusters_autoenc = np.load('autoencoder/hierarch_cluster_labels.npy')
-			labels_autoenc = labels_autoenc[clusters_autoenc==self.cluster]
-			labels_sel=np.array([x['filename'] for x in labels_autoenc])
+			labels_autoenc = np.load('clustering_labels/hierarch_cluster_labels.npy')
+			string_process = np.array([x.replace('/data/s1530194/speed/images/','').split('/') for x in labels_autoenc[:,0]])
+			img_labels = string_process[:,1]
+			set_labels = string_process[:,0]
+			clusters_autoenc = labels_autoenc[:,1]
+			labels_sel = img_labels[np.logical_and(clusters_autoenc==str(self.cluster),set_labels=='train')]
 	
 			#shuffle and split
 			train_labels, validation_labels = model_selection.train_test_split(
@@ -226,7 +298,7 @@ class POSE_NN(object):
 		self.gen_output.plot_save_losses(train_loss, test_loss)
 
 		#save the model
-		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}.h5', model = self.model, save = True)
+		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}_c{self.cluster}_o{self.output}.h5', model = self.model, save = True)
 
 		print('--------------------------\n')
 
@@ -238,7 +310,7 @@ class POSE_NN(object):
 		with open(self.output_loc + self.model_summary_name, 'a') as f:
 			print(s, file = f)
 
-	def loss_function(self, x, y):
+	def loss_function(self, y, x):
 		"""
 		Loss function to be used during training.
 		If the option "MSE" is used, it uses mean squared error,
@@ -264,45 +336,84 @@ class POSE_NN(object):
 			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 			return tf.add(score_r,score_q)
 		elif self.loss == 'NPOSE':
-			nn_r=x[:,0:3]
-			gt_r=y[:,0:3]
-			score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
-			nn_q_norm=tf.norm(x[:,3:7],axis=1)
-			nn_q=tf.stack([tf.divide(x[:,3],nn_q_norm),
-				   tf.divide(x[:,4],nn_q_norm),
-				   tf.divide(x[:,5],nn_q_norm),
-				   tf.divide(x[:,6],nn_q_norm)],
-				   axis=1)
-			gt_q=y[:,3:7]
-			score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
-			return tf.add(score_r,score_q)
+			if self.output=='BOTH':
+				nn_r=x[:,0:3]
+				gt_r=y[:,0:3]
+				score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
+				nn_q_norm=tf.norm(x[:,3:7],axis=1)
+#				nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
+#					   tf.divide(x[:,1],nn_q_norm),
+#					   tf.divide(x[:,2],nn_q_norm),
+#					   tf.divide(x[:,3],nn_q_norm)],
+#					   axis=1)
+				nn_q=tf.divide(x,nn_q_norm)
+				gt_q=y[:,3:7]
+				score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
+				return tf.add(score_r,score_q)
+			elif self.output=='PSTN':
+				nn_r=x
+				gt_r=y
+#				score_r=tf.reduce_mean(tf.norm(gt_r-nn_r,axis=1))
+				score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
+				return score_r
+			elif self.output=='ORTN':
+				nn_q_norm=tf.norm(x,axis=1)
+#				nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
+#					   tf.divide(x[:,1],nn_q_norm),
+#					   tf.divide(x[:,2],nn_q_norm),
+#					   tf.divide(x[:,3],nn_q_norm)],
+#					   axis=1)
+				nn_q=tf.divide(x,nn_q_norm)
+				gt_q=y
+				score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
+				return score_q
+			
 		else:
 			raise ValueError('The loss "'+self.loss+'" is not a valid loss.')
 
-	def metrics_function(self, x, y):
+	def metrics_function(self, y, x):
 		"""
 		Final score function used in the competition.
 		"""
-		nn_r=x[:,0:3]
-		gt_r=y[:,0:3]
-		score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
-		nn_q_norm=tf.norm(x[:,3:7],axis=1)
-		nn_q=tf.stack([tf.divide(x[:,3],nn_q_norm),
-			   tf.divide(x[:,4],nn_q_norm),
-			   tf.divide(x[:,5],nn_q_norm),
-			   tf.divide(x[:,6],nn_q_norm)],
-			   axis=1)
-		gt_q=y[:,3:7]
-		score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
-		return tf.add(score_r,score_q)
+		if self.output=='BOTH':
+			nn_r=x[:,0:3]
+			gt_r=y[:,0:3]
+			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
+			nn_q_norm=tf.norm(x[:,3:7],axis=1)
+#			nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
+#				   tf.divide(x[:,1],nn_q_norm),
+#				   tf.divide(x[:,2],nn_q_norm),
+#				   tf.divide(x[:,3],nn_q_norm)],
+#				   axis=1)
+			nn_q=tf.divide(x,nn_q_norm)
+			gt_q=y[:,3:7]
+			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
+			return tf.add(score_r,score_q)
+		elif self.output=='PSTN':
+			nn_r=x
+			gt_r=y
+			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
+#			score_r=tf.reduce_mean(tf.norm(gt_r-nn_r,axis=1))
+			return score_r
+		elif self.output=='ORTN':
+			nn_q_norm=tf.norm(x,axis=1)
+#			nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
+#				   tf.divide(x[:,1],nn_q_norm),
+#				   tf.divide(x[:,2],nn_q_norm),
+#				   tf.divide(x[:,3],nn_q_norm)],
+#				   axis=1)
+			nn_q=tf.divide(x,nn_q_norm)
+			gt_q=y
+			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
+			return score_q
 
 
-def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster,output):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 
 	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster)
+	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster,output)
 
 	#train the network
 	pose.train_model()
@@ -313,14 +424,15 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
-parser.add_argument('--epochs', help='Number of epochs for training.', default = 30)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
-parser.add_argument('--version', help='version of the neural network.', default = 0)
+parser.add_argument('--epochs', help='Number of epochs for training.', default = 4)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 4)
+parser.add_argument('--version', help='version of the neural network.', default = 100)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
-parser.add_argument('--loss', help='loss to use. Options: POSE, MAPE, MSE', default = 'POSE')
-parser.add_argument('--early_stopping', help='use early stopping.', default = False)
+parser.add_argument('--loss', help='loss to use. Options: POSE, NPOSE, MAPE, MSE', default = 'NPOSE')
+parser.add_argument('--early_stopping', help='use early stopping.', default = True)
 parser.add_argument('--crop', help='use crop.', default = True)
 parser.add_argument('--cluster', help='Cluster of images to use for training.', default = 2)
+parser.add_argument('--output', help='Output in which to train the network. Options: PSTN, ORTN, BOTH.', default = 'ORTN')
 args = parser.parse_args()
 
-main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop), int(args.cluster))
+main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop), int(args.cluster), str(args.output))
