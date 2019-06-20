@@ -114,9 +114,10 @@ class POSE_NN(object):
 		self.dataloader()
 		if self.load_model < 0:
 			print(self.learning_rate)
-			model_basic = create_model(self)
+			
 			# This will result in an error if the wrong architectire is used
 			if self.output=='PSTN':
+				model_basic = create_model_pstn(self)
 				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
 				model =  model_basic(img_in)
 				model_rx = keras.layers.Dense(1, activation = 'linear')(model)
@@ -124,24 +125,26 @@ class POSE_NN(object):
 				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
 				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
 				model_final =  keras.models.Model(inputs = img_in, outputs=model_r)
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
 				model_final.compile(loss = self.loss_function, 
-							optimizer = Adam(lr = self.learning_rate,
-							decay = self.learning_rate_decay),
+							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
 			elif self.output=='ORTN':
+				model_basic = create_model_ortn(self)
 				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
 				crop_in = keras.layers.Input(shape=(4,))
 				model =  model_basic([img_in,crop_in])
 				model = keras.layers.Dense(4, activation = 'tanh')(model)
 				model = keras.layers.Lambda(tf.nn.l2_normalize )(model)
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=model)
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
 				model_final.compile(loss = self.loss_function, 
-							optimizer = Adam(lr = self.learning_rate,
-							decay = self.learning_rate_decay),
+							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
 			elif self.output=='BOTH':
+				model_basic = create_model_ortn(self)
 				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
 				crop_in = keras.layers.Input(shape=(4,))
 				model =  model_basic([img_in,crop_in])
@@ -153,13 +156,12 @@ class POSE_NN(object):
 				model_q = keras.layers.Lambda(tf.nn.l2_normalize )(model_q)
 				predictions = keras.layers.concatenate([model_q,model_r])
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=predictions)
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
 				model_final.compile(loss = self.loss_function, 
-							optimizer = Adam(lr = self.learning_rate,
-							decay = self.learning_rate_decay),
+							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
 
-			
 		else:
 			print(self.load_model)
 			self.model = self.gen_output.saveLoadModel(f'Version_{self.load_model}/model_v{self.load_model}_c{self.cluster}_o{self.output}.h5', load=True)
