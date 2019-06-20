@@ -5,12 +5,12 @@ in the filename if you want to drastically change the architecture
 Pablo Gomez Perez, 24-3-2019
 """
 
-from tensorflow.python.keras.applications.resnet50 import preprocess_input
-from tensorflow.python.keras.preprocessing import image
+from keras.applications.resnet50 import preprocess_input
+from keras.preprocessing import image
 
-from tensorflow.python.keras.optimizers import Adam
+from keras.optimizers import Adam
 
-from tensorflow.python.keras.utils.vis_utils import plot_model #requires pydot and graphviz
+from keras.utils import plot_model #requires pydot and graphviz
 
 import tensorflow as tf
 
@@ -110,10 +110,9 @@ def create_model(pose):
 	plot_model(model_final, to_file = f'{pose.output_loc}model_arch_v{pose.version}_c{pose.cluster}_o{pose.output}.png', show_shapes = True, show_layer_names = True)
 
 	print(pose.learning_rate)
-	model_final.compile(
-			loss = pose.loss_function, 
-			optimizer = Adam(lr = pose.learning_rate,decay = pose.learning_rate_decay),
-			metrics = [pose.metrics_function]
-			)
+	optimizer = keras.optimizers.Adam(lr = pose.learning_rate, decay = pose.learning_rate_decay)
+	model_final.compile(loss = pose.loss_function, 
+							optimizer = optimizer,
+							metrics = [pose.metrics_function])
 
 	return model_final

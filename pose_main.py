@@ -16,11 +16,11 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from tensorflow.python.keras.applications.resnet50 import preprocess_input
-from tensorflow.python.keras.preprocessing import image
-from tensorflow.python.keras.optimizers import Adam
+from keras.applications.resnet50 import preprocess_input
+from keras.preprocessing import image
+from keras.optimizers import Adam
 import tensorflow as tf
-import tensorflow.python.keras as keras
+import keras
 from sklearn import model_selection
 
 
@@ -35,7 +35,8 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_34 import create_model
+from pose_architecture_34 import create_model as create_model_ortn
+from pose_architecture_44 import create_model as create_model_pstn
 
 
 """
@@ -299,6 +300,7 @@ class POSE_NN(object):
 
 		#save the model
 		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}_c{self.cluster}_o{self.output}.h5', model = self.model, save = True)
+		self.gen_output.saveLoadModel(f'{self.output_loc}model_v{self.version}_c{self.cluster}_o{self.output}_weights.h5', model = self.model, save = True, weights = True)
 
 		print('--------------------------\n')
 
@@ -412,12 +414,13 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 	for cluster in [0,1,2]:
-		
+		tf.reset_default_graph()
 		#initialize parameters, data loading and the network architecture
 		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')	
 		#train the network
 		pose.train_model()
 		
+		tf.reset_default_graph()
 		#initialize parameters, data loading and the network architecture
 		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, True, cluster,'ORTN')	
 		#train the network

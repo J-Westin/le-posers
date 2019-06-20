@@ -562,7 +562,7 @@ class OutputResults(object):
 		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}.png', dpi = 300, bbox_inches = 'tight')
 		plt.close()
 
-	def saveLoadModel(self, filename, model=None, save=False, load=False, loss=None):
+	def saveLoadModel(self, filename, model=None, save=False, load=False, loss=None, weights=False):
 		"""
 		Load or save a model easily given a path+filename. Filenames must have the format 'model.h5'.
 		This saves/load model architecture, weights, loss function, optimizer, and optimizer state.
@@ -572,7 +572,10 @@ class OutputResults(object):
 		"""
 		if save:
 			print('Saving model to {}'.format(filename))
-			model.save(filename)
+			if weights:
+				model.save_weights(filename)
+			else:
+				model.save(filename)
 		if load:
 			import keras.losses
 			if loss is None:
@@ -583,6 +586,7 @@ class OutputResults(object):
 				print('Cannot find specified model, check if path or filename is correct')
 				return
 			print('Loading model from {0}'.format(filename))
+			
 			model = keras.models.load_model(filename)
 
 			return model
