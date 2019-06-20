@@ -5,12 +5,12 @@ in the filename if you want to drastically change the architecture
 Pablo Gomez Perez, 24-3-2019
 """
 
-from keras.applications.resnet50 import preprocess_input
-from keras.preprocessing import image
+from tensorflow.python.keras.applications.resnet50 import preprocess_input
+from tensorflow.python.keras.preprocessing import image
 
-from keras.optimizers import Adam
+from tensorflow.python.keras.optimizers import Adam
 
-from keras.utils.vis_utils import plot_model #requires pydot and graphviz
+from tensorflow.python.keras.utils.vis_utils import plot_model #requires pydot and graphviz
 
 import tensorflow as tf
 

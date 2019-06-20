@@ -16,11 +16,11 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from keras.applications.resnet50 import preprocess_input
-from keras.preprocessing import image
-from keras.optimizers import Adam
+from tensorflow.python.keras.applications.resnet50 import preprocess_input
+from tensorflow.python.keras.preprocessing import image
+from tensorflow.python.keras.optimizers import Adam
 import tensorflow as tf
-import keras
+import tensorflow.python.keras as keras
 from sklearn import model_selection
 
 
@@ -408,18 +408,23 @@ class POSE_NN(object):
 			return score_q
 
 
-def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster,output):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster_un,output):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
-
-	#initialize parameters, data loading and the network architecture
-	pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster,output)
-
-	#train the network
-	pose.train_model()
+	for cluster in [0,1,2]:
+		
+		#initialize parameters, data loading and the network architecture
+		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')	
+		#train the network
+		pose.train_model()
+		
+		#initialize parameters, data loading and the network architecture
+		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, True, cluster,'ORTN')	
+		#train the network
+		pose.train_model()
 
 	#evaluate the results
-	pose.generate_submission()
+#	pose.generate_submission()
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
