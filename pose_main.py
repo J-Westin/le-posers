@@ -435,4 +435,6 @@ parser.add_argument('--cluster', help='Cluster of images to use for training.', 
 parser.add_argument('--output', help='Output in which to train the network. Options: PSTN, ORTN, BOTH.', default = 'ORTN')
 args = parser.parse_args()
 
+# Important: If PSTN then crop should be False, if ORTN or BOTH it should be True
+
 main(int(args.batch), int(args.epochs), int(args.version), int(args.load), str(args.loss), bool(args.early_stopping), bool(args.crop), int(args.cluster), str(args.output))
