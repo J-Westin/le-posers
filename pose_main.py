@@ -344,7 +344,7 @@ class POSE_NN(object):
 				nn_r=x[:,0:3]
 				gt_r=y[:,0:3]
 				score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
-				nn_q_norm=tf.norm(x[:,3:7],axis=1)
+				nn_q_norm=tf.expand_dims(tf.norm(x[:,3:7],axis=1),axis=1)
 #				nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
 #					   tf.divide(x[:,1],nn_q_norm),
 #					   tf.divide(x[:,2],nn_q_norm),
@@ -361,13 +361,13 @@ class POSE_NN(object):
 				score_r=tf.reduce_mean(tf.square(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1))))
 				return score_r
 			elif self.output=='ORTN':
-				nn_q_norm=tf.norm(x,axis=1)
+				nn_q_norm=tf.expand_dims(tf.norm(x,axis=1),axis=1)
 #				nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
 #					   tf.divide(x[:,1],nn_q_norm),
 #					   tf.divide(x[:,2],nn_q_norm),
 #					   tf.divide(x[:,3],nn_q_norm)],
 #					   axis=1)
-				nn_q=tf.divide(x,nn_q_norm)
+				nn_q=tf.math.divide(x,nn_q_norm)
 				gt_q=y
 				score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
 				return score_q
@@ -383,7 +383,7 @@ class POSE_NN(object):
 			nn_r=x[:,0:3]
 			gt_r=y[:,0:3]
 			score_r=tf.reduce_mean(tf.divide(tf.norm(gt_r-nn_r,axis=1),tf.norm(gt_r,axis=1)))
-			nn_q_norm=tf.norm(x[:,3:7],axis=1)
+			nn_q_norm=tf.expand_dims(tf.norm(x[:,3:7],axis=1),axis=1)
 #			nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
 #				   tf.divide(x[:,1],nn_q_norm),
 #				   tf.divide(x[:,2],nn_q_norm),
@@ -400,13 +400,13 @@ class POSE_NN(object):
 #			score_r=tf.reduce_mean(tf.norm(gt_r-nn_r,axis=1))
 			return score_r
 		elif self.output=='ORTN':
-			nn_q_norm=tf.norm(x,axis=1)
+			nn_q_norm=tf.expand_dims(tf.norm(x,axis=1),axis=1)
 #			nn_q=tf.stack([tf.divide(x[:,0],nn_q_norm),
 #				   tf.divide(x[:,1],nn_q_norm),
 #				   tf.divide(x[:,2],nn_q_norm),
 #				   tf.divide(x[:,3],nn_q_norm)],
 #				   axis=1)
-			nn_q=tf.divide(x,nn_q_norm)
+			nn_q=tf.math.divide(x,nn_q_norm)
 			gt_q=y
 			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 			return score_q
@@ -415,14 +415,16 @@ class POSE_NN(object):
 def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster_un,output):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
-	for cluster in [0,1,2]:
-		tf.reset_default_graph()
-		#initialize parameters, data loading and the network architecture
-		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')	
-		#train the network
-		pose.train_model()
+	if output=='PSTN':
+		for cluster in [0,1,2]:
+	#		tf.reset_default_graph()
+			#initialize parameters, data loading and the network architecture
+			pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')	
+			#train the network
+			pose.train_model()
 		
-		tf.reset_default_graph()
+	if output=='ORTN':
+#		tf.reset_default_graph()
 		#initialize parameters, data loading and the network architecture
 		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, True, cluster,'ORTN')	
 		#train the network
@@ -434,7 +436,7 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
-parser.add_argument('--epochs', help='Number of epochs for training.', default = 4)
+parser.add_argument('--epochs', help='Number of epochs for training.', default = 1)
 parser.add_argument('--batch', help='number of samples in a batch.', default = 4)
 parser.add_argument('--version', help='version of the neural network.', default = 100)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
