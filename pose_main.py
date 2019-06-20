@@ -132,7 +132,7 @@ class POSE_NN(object):
 				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
 				crop_in = keras.layers.Input(shape=(4,))
 				model =  model_basic([img_in,crop_in])
-				model = keras.layers.Dense(4, activation = 'linear')(model)
+				model = keras.layers.Dense(4, activation = 'tanh')(model)
 				model = keras.layers.Lambda(tf.nn.l2_normalize )(model)
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=model)
 				model_final.compile(loss = self.loss_function, 
