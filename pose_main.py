@@ -267,10 +267,10 @@ class POSE_NN(object):
 
 		# Choose the early stopping and learning rate configuration
 		early_stopping = keras.callbacks.EarlyStopping(monitor = 'val_loss',
-						patience = 15, verbose = 1,
+						patience = 16, verbose = 1,
 						restore_best_weights = True, min_delta = 1e-2)
 		reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss',
-						factor = 0.5, patience = 3, verbose = 1,
+						factor = 0.5, patience = 5, verbose = 1,
 						min_delta = 1e-2, min_lr = 1e-6)
 		# save_model = keras.callbacks.ModelCheckpoint(os.path.join(self.output_loc, 'modelSave_{epoch:04d}-{val_loss:.5f}.h5'),save_best_only=True)
 
