@@ -114,53 +114,44 @@ class POSE_NN(object):
 		self.dataloader()
 		if self.load_model < 0:
 			print(self.learning_rate)
+			if crop:
+				model_basic = create_model_ortn(self)
+				img_in = keras.layers.Input(shape=(self.imgsize[0], self.imgsize[1],3), name="img_in")
+				crop_in = keras.layers.Input(shape=(4,))
+				model_in =  model_basic([img_in,crop_in])
+			else:
+				model_basic = create_model_pstn(self)
+				img_in = keras.layers.Input(shape=(self.imgsize[0], self.imgsize[1],3), name="img_in")
+				model_in =  model_basic(img_in)
 			
 			# This will result in an error if the wrong architectire is used
 			if self.output=='PSTN':
-				model_basic = create_model_pstn(self)
-				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
-				model =  model_basic(img_in)
-				model_rx = keras.layers.Dense(1, activation = 'linear')(model)
-				model_ry = keras.layers.Dense(1, activation = 'linear')(model)
-				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
-				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
-				model_final =  keras.models.Model(inputs = img_in, outputs=model_r)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
-							optimizer = optimizer,
-							metrics = [self.metrics_function])
-				self.model = model_final
+				model_rx = keras.layers.Dense(1, activation = 'linear')(model_in)
+				model_ry = keras.layers.Dense(1, activation = 'linear')(model_in)
+				model_rz = keras.layers.Dense(1, activation = 'softplus')(model_in)
+				predictions =  keras.layers.concatenate([model_rx,model_ry,model_rz])
 			elif self.output=='ORTN':
-				model_basic = create_model_ortn(self)
-				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
-				crop_in = keras.layers.Input(shape=(4,))
-				model =  model_basic([img_in,crop_in])
-				model = keras.layers.Dense(4, activation = 'tanh')(model)
-				model = keras.layers.Lambda(tf.nn.l2_normalize )(model)
-				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=model)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
-							optimizer = optimizer,
-							metrics = [self.metrics_function])
-				self.model = model_final
+				model = keras.layers.Dense(4, activation = 'tanh')(model_in)
+				predictions = keras.layers.Lambda(tf.nn.l2_normalize )(model)
 			elif self.output=='BOTH':
-				model_basic = create_model_ortn(self)
-				img_in = keras.layers.Input(shape=(self.imgsize, self.imgsize,3), name="img_in")
-				crop_in = keras.layers.Input(shape=(4,))
-				model =  model_basic([img_in,crop_in])
-				model_rx = keras.layers.Dense(1, activation = 'linear')(model)
-				model_ry = keras.layers.Dense(1, activation = 'linear')(model)
-				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
+				model_rx = keras.layers.Dense(1, activation = 'linear')(model_in)
+				model_ry = keras.layers.Dense(1, activation = 'linear')(model_in)
+				model_rz = keras.layers.Dense(1, activation = 'softplus')(model_in)
 				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
 				model_q = keras.layers.Dense(4, activation = 'tanh')(model)
 				model_q = keras.layers.Lambda(tf.nn.l2_normalize )(model_q)
 				predictions = keras.layers.concatenate([model_q,model_r])
+			
+			if crop:
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=predictions)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
-							optimizer = optimizer,
-							metrics = [self.metrics_function])
-				self.model = model_final
+			else:
+				model_final =  keras.models.Model(inputs = img_in, outputs=predictions)
+			
+			optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
+			model_final.compile(loss = self.loss_function, 
+						optimizer = optimizer,
+						metrics = [self.metrics_function])
+			self.model = model_final
 
 		else:
 			print(self.load_model)
