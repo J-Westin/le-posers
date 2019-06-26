@@ -1,7 +1,7 @@
 '''
 https://machinelearningmastery.com/save-load-keras-deep-learning-models/
 
-Remove last layer of model with 
+Remove last layer of model with
 model.layers.pop()
 
 Freeze layers
@@ -35,14 +35,9 @@ import warnings
 
 from pose_submission import SubmissionWriter
 from pose_utils import KerasDataGenerator, checkFolders, OutputResults
-from pose_architecture_34 import create_model as create_model_ortn
-from pose_architecture_44 import create_model as create_model_pstn
+from pose_architecture_ortn import create_model as create_model_ortn
+from pose_architecture_pstn import create_model as create_model_pstn
 
-
-"""
-	Example script demonstrating training on the SPEED dataset using Keras.
-	Usage example: python keras_example.py --epochs [num epochs] --batch [batch size]
-"""
 
 class POSE_NN(object):
 
@@ -65,8 +60,7 @@ class POSE_NN(object):
 		#dropout percentage
 		self.dropout = 0.3
 
-		self.learning_rate = 0.0001
-		self.learning_rate_decay = 0.0
+		self.learning_rate = 0.001
 
 		#### constant parameters
 		# self.dataset_loc = '../../speed'
@@ -90,7 +84,7 @@ class POSE_NN(object):
 			loaded_model._make_predict_function()
 #			loaded_model.compile(optimizer='Adam',loss='mse')
 			self.cropper_model = loaded_model
-		
+
 			self.params = {'dim': (self.imgsize, self.imgsize),
 					  'batch_size': self.batch_size,
 					  'n_channels': 3,
@@ -100,7 +94,7 @@ class POSE_NN(object):
 					  'crop': self.crop,
 					  'cropper_model': self.cropper_model,
 					  'output': self.output}
-			
+
 		else:
 			self.params = {'dim': (self.imgsize, self.imgsize),
 					  'batch_size': self.batch_size,
@@ -113,8 +107,6 @@ class POSE_NN(object):
 
 		self.dataloader()
 		if self.load_model < 0:
-			print(self.learning_rate)
-			
 			# This will result in an error if the wrong architectire is used
 			if self.output=='PSTN':
 				model_basic = create_model_pstn(self)
@@ -125,8 +117,8 @@ class POSE_NN(object):
 				model_rz = keras.layers.Dense(1, activation = 'softplus')(model)
 				model_r =  keras.layers.concatenate([model_rx,model_ry,model_rz])
 				model_final =  keras.models.Model(inputs = img_in, outputs=model_r)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate)
+				model_final.compile(loss = self.loss_function,
 							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
@@ -138,8 +130,8 @@ class POSE_NN(object):
 				model = keras.layers.Dense(4, activation = 'tanh')(model)
 				model = keras.layers.Lambda(tf.nn.l2_normalize )(model)
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=model)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate)
+				model_final.compile(loss = self.loss_function,
 							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
@@ -156,8 +148,8 @@ class POSE_NN(object):
 				model_q = keras.layers.Lambda(tf.nn.l2_normalize )(model_q)
 				predictions = keras.layers.concatenate([model_q,model_r])
 				model_final =  keras.models.Model(inputs = [img_in,crop_in], outputs=predictions)
-				optimizer = keras.optimizers.Adam(lr = self.learning_rate, decay = self.learning_rate_decay)
-				model_final.compile(loss = self.loss_function, 
+				optimizer = keras.optimizers.Adam(lr = self.learning_rate)
+				model_final.compile(loss = self.loss_function,
 							optimizer = optimizer,
 							metrics = [self.metrics_function])
 				self.model = model_final
@@ -237,7 +229,7 @@ class POSE_NN(object):
 			warnings.warn('No valid cluster has been defined, using the whole dataset')
 			#shuffle and split
 			train_labels, validation_labels = model_selection.train_test_split(label_list, test_size = self.test_size, shuffle = True)
-	
+
 			# Data generators for training and validation
 			self.training_generator = KerasDataGenerator(preprocess_input, train_labels, self.dataset_loc, **self.params)
 			self.validation_generator = KerasDataGenerator(preprocess_input, validation_labels, self.dataset_loc, **self.params)
@@ -249,14 +241,14 @@ class POSE_NN(object):
 			set_labels = string_process[:,0]
 			clusters_autoenc = labels_autoenc[:,1]
 			labels_sel = img_labels[np.logical_and(clusters_autoenc==str(self.cluster),set_labels=='train')]
-	
+
 			#shuffle and split
 			train_labels, validation_labels = model_selection.train_test_split(
 					labels_sel, test_size = self.test_size, shuffle = True)
 			# Data generators for training and validation
 			self.training_generator = KerasDataGenerator(preprocess_input, label_list, self.dataset_loc, labels_sel=train_labels, **self.params)
 			self.validation_generator = KerasDataGenerator(preprocess_input, label_list, self.dataset_loc, labels_sel=validation_labels, **self.params)
-			
+
 
 	def train_model(self):
 		"""
@@ -367,11 +359,11 @@ class POSE_NN(object):
 #					   tf.divide(x[:,2],nn_q_norm),
 #					   tf.divide(x[:,3],nn_q_norm)],
 #					   axis=1)
-				nn_q=tf.math.divide(x,nn_q_norm)
+				nn_q=tf.divide(x,nn_q_norm)
 				gt_q=y
 				score_q=tf.reduce_mean(tf.square(tf.tensordot(nn_q,gt_q,[1,1])-1))
 				return score_q
-			
+
 		else:
 			raise ValueError('The loss "'+self.loss+'" is not a valid loss.')
 
@@ -406,29 +398,31 @@ class POSE_NN(object):
 #				   tf.divide(x[:,2],nn_q_norm),
 #				   tf.divide(x[:,3],nn_q_norm)],
 #				   axis=1)
-			nn_q=tf.math.divide(x,nn_q_norm)
+			nn_q=tf.divide(x,nn_q_norm)
 			gt_q=y
 			score_q=tf.reduce_mean(tf.abs(2*tf.acos(tf.clip_by_value(tf.tensordot(nn_q,gt_q,[1,1]),-1,1))))
 			return score_q
 
 
-def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster_un,output):
+def main(batch_size, epochs, version, load_model, loss_function, use_early_stop, crop, cluster,output):
 
 	""" Setting up data generators and model, training, and evaluating model on test and real_test sets. """
 	if output=='PSTN':
 		for cluster in [0,1,2]:
 	#		tf.reset_default_graph()
 			#initialize parameters, data loading and the network architecture
-			pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')	
+			pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, False, cluster,'PSTN')
 			#train the network
 			pose.train_model()
-		
-	if output=='ORTN':
+	elif output=='ORTN':
+		print(f'Running {output} with cluster {cluster}')
 #		tf.reset_default_graph()
 		#initialize parameters, data loading and the network architecture
-		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, True, cluster,'ORTN')	
+		pose = POSE_NN(batch_size, epochs, version, load_model, loss_function, use_early_stop, True, cluster,'ORTN')
 		#train the network
 		pose.train_model()
+	else:
+		raise ValueError('Incorrect value for --output parameter. Allowed: "PSTN" or "ORTN"')
 
 	#evaluate the results
 #	pose.generate_submission()
@@ -436,8 +430,8 @@ def main(batch_size, epochs, version, load_model, loss_function, use_early_stop,
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # parser.add_argument('--dataset', help='Path to the downloaded speed dataset.', default='')
-parser.add_argument('--epochs', help='Number of epochs for training.', default = 1)
-parser.add_argument('--batch', help='number of samples in a batch.', default = 4)
+parser.add_argument('--epochs', help='Number of epochs for training.', default = 100)
+parser.add_argument('--batch', help='number of samples in a batch.', default = 32)
 parser.add_argument('--version', help='version of the neural network.', default = 100)
 parser.add_argument('--load', help='load a previously trained network.', default = -1)
 parser.add_argument('--loss', help='loss to use. Options: POSE, NPOSE, MAPE, MSE', default = 'NPOSE')

@@ -443,7 +443,7 @@ if has_tf:
 				y = np.empty((self.batch_size, 3), dtype=float)
 			elif self.output=='ORTN':
 				y = np.empty((self.batch_size, 4), dtype=float)
-			
+
 			if self.crop:
 				C = np.empty((self.batch_size, 4))
 
@@ -465,7 +465,7 @@ if has_tf:
 
 				# flatten and output
 				x = keras_image.img_to_array(img)
-				
+
 				x = self.preprocessor(np.concatenate([x,x,x], axis=-1, out=None))
 
 				X[i,] = x
@@ -524,13 +524,13 @@ class OutputResults(object):
 
 		plt.xlabel('Epoch')
 		plt.ylabel('Loss')
-		plt.title(f'Loss progression of version {self.pose_nn.version}')
+		plt.title(f'Loss progression of version {self.pose_nn.version} {self.pose_nn.output}')
 		plt.legend(loc = 'best')
 		plt.grid(alpha = 0.4)
 
 		plt.savefig(f'{self.pose_nn.output_loc}Losses_v{self.pose_nn.version}_c{self.pose_nn.cluster}_o{self.pose_nn.output}.png', dpi = 300, bbox_inches = 'tight')
 		plt.close()
-		
+
 	def plot_save_losses_gan(self, train_loss, test_loss):
 		"""
 		Save and plot the losses
@@ -586,7 +586,7 @@ class OutputResults(object):
 				print('Cannot find specified model, check if path or filename is correct')
 				return
 			print('Loading model from {0}'.format(filename))
-			
+
 			model = keras.models.load_model(filename)
 
 			return model

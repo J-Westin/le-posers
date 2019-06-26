@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import argparse
 
 import numpy as np
 import matplotlib
@@ -308,15 +309,22 @@ def make_model(loadmodel = False):
 
 	return bb_model
 
+#### Receive parameters
+parser = argparse.ArgumentParser(formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--target_label', help = 'On what cluster to train the cropper network. Options: [0, 1, 2].', default = 0)
+parser.add_argument('--version', help = 'Network version.', default = 8)
+args = parser.parse_args()
+
+
 #### Fix some parameters
 #which cluster label to train the network for. Possible: [0, 1, 2]
-target_label = 2
+target_label = int(args.target_label)
 #number of validation images to use for plotting examples
 n_val_set = 20
 #size of the input images for the network
-imgsize = (512, 320) #(256, 160)
+imgsize = (256, 160) #(512, 320)
 #version of the network
-version = 7
+version = int(args.version)
 #fraction of available images to use for training. We cannot define a
 #number of images as this depends on the cluster label
 use_frac = 1
